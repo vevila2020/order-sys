@@ -1,0 +1,41 @@
+# 统一换行符：仓库内存 LF，工作区也检出 LF。
+# 原因是开发在 Windows、部署在 Debian amd64；若检出为 CRLF，容器内的 shell 脚本
+# 和 Dockerfile 会因 \r 报 "bad interpreter" 或语法错误。仅 Windows 原生格式的
+# 文件（.bat/.cmd/.ps1）保留 CRLF。
+* text=auto eol=lf
+
+# 显式声明文本文件，避免被误判为二进制而跳过规范化。
+*.md        text eol=lf
+*.go        text eol=lf
+*.mod       text eol=lf
+*.sum       text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.json      text eol=lf
+*.sql       text eol=lf
+*.sh        text eol=lf
+*.toml      text eol=lf
+Makefile    text eol=lf
+Dockerfile  text eol=lf
+.dockerignore text eol=lf
+.gitignore  text eol=lf
+.gitattributes text eol=lf
+
+# PowerShell 脚本本身按 Windows 习惯保留 CRLF；pwsh 两种换行都能解析，
+# 但 CRLF 更贴合在 Windows 上用记事本/VS Code 编辑的实际情况。
+*.ps1       text eol=crlf
+*.psm1      text eol=crlf
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+
+# 二进制：不参与换行转换，也不做 diff。
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.pdf       binary
+*.zip       binary
+*.gz        binary
+*.exe       binary
+*.dll       binary

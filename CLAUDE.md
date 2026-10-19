@@ -7,6 +7,12 @@
 - 导出的包、类型、函数使用 Go doc 注释，以包名/标识符开头；复杂分支、魔法值、错误映射和非显然的边界条件必须有行内注释。
 - 注释与代码不一致视为缺陷：修改行为时必须同步修改注释，禁止保留过期注释。
 
+## 运行环境
+
+- **开发环境：Windows。** 给出的命令行命令必须能在 Windows PowerShell 7（`pwsh`）中直接执行，不要只给 bash / GNU 工具链写法（如 `sed -i`、`export`、`grep -P`、`/dev/urandom` 等）。
+- **部署环境：Linux Debian amd64（x86_64）。** 容器镜像、部署脚本、systemd 单元等以该平台为准，不要引入仅 Windows 或非 amd64 可用的假设。
+- 需要同时给出两套命令时，分别标注「PowerShell 7」与「Debian」，并注意两者路径分隔符、环境变量语法、换行符差异。
+
 ## 项目约束（摘自需求规格 v3.1）
 
 - 技术栈全周期冻结：Gin、Viper、zap、GORM、golang-migrate、go-redis、kafka-go、asynq、google/uuid、golang-jwt/v5、Prometheus、OpenTelemetry。不中途换库。
