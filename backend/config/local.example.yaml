@@ -1,0 +1,73 @@
+# 本地开发配置示例。复制为 config/local.yaml 后按需修改。
+# 该文件只放非敏感默认值；密钥必须通过环境变量注入（见 .env.example）。
+app:
+  env: local
+
+service:
+  name: order-sys
+
+http:
+  addr: ":8080"
+  read_timeout: 10s
+  write_timeout: 15s
+  request_timeout: 10s
+  max_body_bytes: 1048576
+  shutdown_grace: 15s
+
+mysql:
+  # DSN 含密码，请使用 MYSQL_DSN 环境变量覆盖。
+  dsn: ""
+  max_open_conns: 25
+  max_idle_conns: 10
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+
+kafka:
+  brokers:
+    - "localhost:9092"
+  group_id: "order-sys"
+
+asynq:
+  # 留空表示与 redis.addr 相同。
+  redis_addr: ""
+
+log:
+  level: info
+
+otlp:
+  endpoint: ""
+
+otel:
+  traces_sampler_arg: 0.1
+
+jwt:
+  # local 环境缺失时会使用开发密钥；非 local 环境必须注入 JWT_SECRET。
+  secret: ""
+  ttl: 1h
+
+payment:
+  callback_token: ""
+  timeout: 15m
+
+flash_sale:
+  queue_timeout: 5m
+
+idempotency:
+  ttl: 24h
+
+rate_limit:
+  enabled: false
+  per_user: "100/min"
+
+retention:
+  idempotency: 48h
+  outbox: 168h
+  processed: 168h
+  dead_letter: 720h
+  delivery: 720h
+  audit: 8760h
+
+# 仅 local/ci 允许为 true；非 local/ci 启动校验会拒绝。
+local_auth_enabled: true

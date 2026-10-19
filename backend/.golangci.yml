@@ -1,0 +1,21 @@
+# golangci-lint v2 配置。
+# 需求 §3.2 要求启用 govet、staticcheck、errcheck、gosec、bodyclose、
+# contextcheck、sqlclosecheck；其中前三个属于 standard 默认集合，
+# 这里只显式补充其余检查，避免重复声明。
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - contextcheck
+    - gosec
+    - sqlclosecheck
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

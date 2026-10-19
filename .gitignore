@@ -1,1 +1,26 @@
+# IDE
 .idea/
+.vscode/
+
+# 本地环境与密钥：仓库只保留 *.example 文件
+.env
+.env.local
+backend/config/local.yaml
+backend/config/ci.yaml
+*.pem
+*.key
+
+# Go 构建产物与测试缓存
+backend/bin/
+backend/dist/
+*.exe
+*.exe~
+*.test
+*.out
+coverage.html
+coverage.out
+
+# 工具产物
+artifacts/
+sbom.json
+sbom.spdx.json

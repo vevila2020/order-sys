@@ -1,0 +1,20 @@
+# Prometheus 本地抓取配置。
+# 抓取间隔保持 15s，与告警规则的评估周期一致，避免本地指标抖动。
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8080"]
+
+  - job_name: worker
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["worker:8081"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

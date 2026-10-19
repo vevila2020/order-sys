@@ -1,0 +1,175 @@
+# 本地依赖与应用编排。
+#
+# 设计要点：
+#   - 只有 api、Grafana、Jaeger 暴露宿主机端口；MySQL/Redis/Kafka/Prometheus
+#     仅在 Compose 内部网络中可访问，减少本地端口冲突与误连风险。
+#   - 所有镜像固定 minor 版本或 digest，不使用 latest。
+#   - mysql-data 是唯一需要备份的卷；Redis/Kafka 数据可重建。
+#   - api/worker 依赖 depends_on 的健康检查，避免启动即重试。
+
+name: order-sys
+
+services:
+  mysql:
+    image: mysql:8.4.3
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+00:00
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-order_sys}
+      MYSQL_USER: ${MYSQL_USER:-order}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-order}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      # 用业务账号做 ping，真正验证账号可用而不只是端口打开。
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [backend]
+
+  redis:
+    image: redis:7.4.1-alpine
+    command: ["redis-server", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [backend]
+
+  kafka:
+    # KRaft 单节点，无需 ZooKeeper；仅用于本地开发。
+    image: apache/kafka:3.9.0
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: controller,broker
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_NUM_PARTITIONS: "3"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      # 列出 topic 才能确认 broker 真正可用，而不仅是端口监听。
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    networks: [backend]
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [backend]
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks: [backend]
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.65.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+    networks: [backend]
+
+  api:
+    build:
+      context: ./backend
+      args:
+        TARGET: api
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      CONFIG_FILE: ""
+      HTTP_ADDR: ":8080"
+      MYSQL_DSN: ${MYSQL_DSN:-order:order@tcp(mysql:3306)/order_sys?parseTime=true&loc=UTC}
+      REDIS_ADDR: redis:6379
+      KAFKA_BROKERS: kafka:9092
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set via make setup}
+      PAYMENT_CALLBACK_TOKEN: ${PAYMENT_CALLBACK_TOKEN:?PAYMENT_CALLBACK_TOKEN must be set via make setup}
+      OTEL_TRACES_SAMPLER_ARG: "1"
+      OTLP_ENDPOINT: http://jaeger:4317
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks: [backend]
+
+  worker:
+    build:
+      context: ./backend
+      args:
+        TARGET: worker
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      CONFIG_FILE: ""
+      MYSQL_DSN: ${MYSQL_DSN:-order:order@tcp(mysql:3306)/order_sys?parseTime=true&loc=UTC}
+      REDIS_ADDR: redis:6379
+      KAFKA_BROKERS: kafka:9092
+      JWT_SECRET: ${JWT_SECRET}
+      PAYMENT_CALLBACK_TOKEN: ${PAYMENT_CALLBACK_TOKEN}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks: [backend]
+
+volumes:
+  mysql-data:
+  kafka-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  backend:
+    driver: bridge

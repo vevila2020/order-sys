@@ -1,0 +1,16 @@
+# 构建上下文只保留源码，排除本地状态与密钥。
+.git
+.gitignore
+.idea
+.vscode
+.env
+.env.*
+*.log
+*.exe
+coverage.out
+coverage.html
+artifacts/
+config/local.yaml
+config/ci.yaml
+Dockerfile
+.dockerignore

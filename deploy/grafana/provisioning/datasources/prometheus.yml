@@ -1,0 +1,11 @@
+# 自动配置 Prometheus 数据源，省去本地手工添加。
+# 面板在 M5 补充；M0 只保证数据源可用。
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
