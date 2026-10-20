@@ -33,12 +33,16 @@ type Check struct {
 }
 
 // Result 是单次检查结果，包含耗时便于定位慢依赖；不包含 DSN 或密码。
+//
+// Duration 故意用毫秒整数而不是 time.Duration：后者实现 MarshalJSON 时
+// 输出纳秒，与 duration_ms 字段名不符（5ms 会变成 5000000），
+// 探针按毫秒解读就会高估三个数量级。
 type Result struct {
-	Name     string        `json:"name"`
-	Status   Status        `json:"status"`
-	Critical bool          `json:"critical"`
-	Duration time.Duration `json:"duration_ms"`
-	Error    string        `json:"error,omitempty"`
+	Name     string `json:"name"`
+	Status   Status `json:"status"`
+	Critical bool   `json:"critical"`
+	Duration int64  `json:"duration_ms"`
+	Error    string `json:"error,omitempty"`
 }
 
 // Report 是 ready 端点的响应体。
@@ -139,6 +143,7 @@ func runCheck(parent context.Context, c Check) Result {
 		res.Status = StatusFail
 		res.Error = "health check timed out"
 	}
-	res.Duration = time.Since(start)
+	// 显式换算成毫秒，保证 JSON 字段名与数值单位一致。
+	res.Duration = time.Since(start).Milliseconds()
 	return res
 }
