@@ -14,7 +14,9 @@ services:
     image: mysql:8.4.3
     command:
       - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_0900_ai_ci
+      # 与部署服务器保持一致：0900_ai_ci 与 unicode_ci 的等价字符集合不同，
+      # 混用会让同一查询在本地与生产得到不同排序/比较结果。
+      - --collation-server=utf8mb4_unicode_ci
       - --default-time-zone=+00:00
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}

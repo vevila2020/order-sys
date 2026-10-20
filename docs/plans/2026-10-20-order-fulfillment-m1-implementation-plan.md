@@ -199,7 +199,8 @@ go test ./... -count=1
    - `payments`（`order_id` UNIQUE）。
    - `idempotency_records`（`uk_idempotency (scope, user_id, key)`）。
    - `outbox_events`（`idx_outbox_pending (status, available_at, id)`）。
-3. 统一 `utf8mb4_0900_ai_ci`、`DATETIME(6)`、金额 `BIGINT UNSIGNED`。
+3. 统一 `utf8mb4_unicode_ci`（与部署服务器一致；`utf8mb4_0900_ai_ci` 的等价字符集
+   不同，混用会导致本地与生产查询结果不一致）、`DATETIME(6)`、金额 `BIGINT UNSIGNED`。
 4. 每个索引在注释中写清查询场景（需求 §9.3 要求）。
 5. `down` 按外键/依赖逆序删除；不使用 `CASCADE` 删除业务表。
 6. 禁用 GORM `AutoMigrate`，迁移文件是唯一事实来源。

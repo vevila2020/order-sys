@@ -16,6 +16,8 @@ http:
 
 mysql:
   # DSN 含密码，请使用 MYSQL_DSN 环境变量覆盖。
+  # 连远程库时先启动 scripts/ssh-tunnel.ps1，再用 tcp(127.0.0.1:13306)；
+  # 服务器上部署则直接 tcp(127.0.0.1:3306)。详见 docs/runbooks/local-dev.md。
   dsn: ""
   max_open_conns: 25
   max_idle_conns: 10

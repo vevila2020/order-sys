@@ -38,6 +38,81 @@ curl -s -o /dev/null -w '%{http_code}\n' \
   localhost:8080/api/v1/admin/ping -H "Authorization: Bearer $TOKEN"   # 预期 403
 ```
 
+## 连接远程 MySQL（SSH 隧道）
+
+本地开发也可以直接连服务器上的 MySQL，而不启动 Compose 里的 MySQL。
+SQL 客户端（Navicat）能连不代表 Go 进程能连：Navicat 自己维护 SSH 隧道，
+Go 进程不会。二者都需要一条独立的隧道。
+
+### 认证前提：私钥有 passphrase
+
+服务器只开密钥登录时，`ssh` 在非交互模式下无法应答 passphrase，会直接报
+`Permission denied (publickey)`——即使服务器已经接受了该公钥。解决方式是
+让 ssh-agent 代为签名，口令只需要输入一次。
+
+```powershell
+# 管理员 PowerShell：启用并开机自启
+Set-Service ssh-agent -StartupType Automatic
+Start-Service ssh-agent
+
+# 普通 PowerShell：加载私钥（会提示输入一次 passphrase）
+ssh-add C:\LGF\oracleK\vps-rn
+ssh-add -l          # 应能看到 ED25519 SHA256:UxGB16mDJoDG9WN8hSZ/D/yYbNqpNYRG1/UsVpxMUgw
+```
+
+私钥路径不要写进 `.env`、Compose 或 Makefile；它比数据库密码权限更高，
+一旦进入容器或日志就不可控。
+
+### 启动 / 查看 / 停止隧道
+
+```powershell
+.\scripts\ssh-tunnel.ps1 -Action Start  -RemoteHost 23.238.26.42 -RemotePort 2233
+.\scripts\ssh-tunnel.ps1 -Action Status -RemoteHost 23.238.26.42 -RemotePort 2233
+.\scripts\ssh-tunnel.ps1 -Action Stop   -RemoteHost 23.238.26.42 -RemotePort 2233
+```
+
+隧道只绑定 `127.0.0.1:13306`（可用 `-LocalPort` 改），不会把 MySQL 暴露到局域网。
+脚本默认走 ssh-agent；也可以用 `-KeyFile` 指定私钥，但带 passphrase 时仍需 agent。
+
+### 环境差异：本地开发 vs 服务器部署
+
+| 场景 | DSN | 是否需要隧道 |
+| --- | --- | --- |
+| Windows 本地开发，连远程库 | `dev:<密码>@tcp(127.0.0.1:13306)/order_sys?...` | 需要 |
+| Windows 本地开发，用 Compose MySQL | `order:order@tcp(localhost:3306)/order_sys?...` | 不需要 |
+| Debian 服务器部署 | `dev:<密码>@tcp(127.0.0.1:3306)/order_sys?...` | 不需要（同机直连） |
+
+主机名必须写 `127.0.0.1` 而不是 `localhost`：Go 的 MySQL 驱动走 TCP，
+`localhost` 可能解析到 `::1`，而隧道默认只监听 IPv4。
+
+### 数据库账号
+
+隧道连进来的源地址是 `127.0.0.1`，因此 MySQL 侧要为该来源授权；
+只授权 `'dev'@'localhost'` 是不够的（那是 unix socket 的来源）。
+
+```sql
+SHOW DATABASES LIKE 'order_sys';
+SELECT user, host FROM mysql.user WHERE user = 'dev';
+
+CREATE USER 'dev'@'localhost'  IDENTIFIED BY '<强密码>';
+CREATE USER 'dev'@'127.0.0.1' IDENTIFIED BY '<强密码>';
+GRANT ALL PRIVILEGES ON order_sys.* TO 'dev'@'localhost';
+GRANT ALL PRIVILEGES ON order_sys.* TO 'dev'@'127.0.0.1';
+FLUSH PRIVILEGES;
+
+SHOW GRANTS FOR 'dev'@'127.0.0.1';
+```
+
+`SELECT ... FROM mysql.user WHERE user='dev'` 返回 `Empty set` 表示用户不存在，
+不是权限不足；用户不存在时 `SHOW DATABASES` 会连库名都隐藏。
+
+### 排序规则必须与服务器一致
+
+项目统一使用 `utf8mb4_unicode_ci`，与部署服务器保持一致。
+`utf8mb4_0900_ai_ci` 是 MySQL 8 的默认排序规则，但与 `utf8mb4_unicode_ci`
+在重音、大小写等价集合上不同，**不能在开发库与生产库之间混用**，
+否则同一查询在两边可能得到不同结果。
+
 ## 常用命令
 
 | 命令 | 说明 |
@@ -90,6 +165,9 @@ docker compose logs api | jq 'select(.level=="error")'
 | 端口被占用 | 修改 Compose 端口映射或 `HTTP_ADDR` |
 | Windows 下 `make` 不存在 | 使用 Git Bash 安装 make，或改用 WSL |
 | `go test -race` 报 cgo 错误 | Windows 默认无 gcc；CI/Linux 执行 race 测试 |
+| 隧道启动即退出，报 `Permission denied (publickey)` | 私钥有 passphrase 但未加载到 ssh-agent；执行 `ssh-add <私钥>` |
+| 隧道正常但 Go 报 `connection refused` | DSN 写了 `localhost` 而非 `127.0.0.1`，或隧道端口与 DSN 不一致 |
+| `dev` 用户 `SHOW DATABASES` 看不到库 | 该用户不存在或未对 `127.0.0.1` 来源授权，见上文授权 SQL |
 
 ## 安全注意
 

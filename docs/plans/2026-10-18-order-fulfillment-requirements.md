@@ -513,7 +513,8 @@ OPEN -> REJECTED
 
 ### 4.5 数据字典
 
-以下为逻辑数据字典，物理类型以迁移文件为准。所有表使用 `BIGINT UNSIGNED` 自增主键或 `CHAR(36)` UUID 作为业务主键，统一 `utf8mb4_0900_ai_ci`，时间列为 `DATETIME(6)` 且存 UTC。
+以下为逻辑数据字典，物理类型以迁移文件为准。所有表使用 `BIGINT UNSIGNED` 自增主键或 `CHAR(36)` UUID 作为业务主键，统一 `utf8mb4_unicode_ci`（与部署服务器一致，不使用 MySQL 8 默认的
+`utf8mb4_0900_ai_ci`），时间列为 `DATETIME(6)` 且存 UTC。
 
 **`skus`（所有者 inventory）**
 
