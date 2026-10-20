@@ -749,7 +749,7 @@ flowchart LR
 
 | 里程碑 | 计划文件（届时创建） | 主要任务组 |
 | --- | --- | --- |
-| M1 订单领域与 MySQL | `YYYY-MM-DD-order-fulfillment-m1-plan.md` | 迁移与表、领域状态机、Repository、事务管理器、SKU/下单/查询/取消/支付回调、幂等、Outbox 写入、集成测试 |
+| M1 订单领域与 MySQL | [2026-10-20-order-fulfillment-m1-implementation-plan.md](./2026-10-20-order-fulfillment-m1-implementation-plan.md) | 迁移与表、领域状态机、Repository、事务管理器、SKU/下单/查询/取消/支付回调、幂等、Outbox 写入、集成测试 |
 | M2 并发正确性 | `YYYY-MM-DD-order-fulfillment-m2-plan.md` | 条件更新/行锁、锁顺序、死锁重试、并发测试、慢查询与索引、100 并发基线 |
 | M3 Redis、Kafka 与秒杀 | `YYYY-MM-DD-order-fulfillment-m3-plan.md` | Redis Lua 准入、活动与限购、请求持久化、Outbox relay、首个消费组、结果查询、对账、降级 |
 | M4 可靠消息与恢复 | `YYYY-MM-DD-order-fulfillment-m4-plan.md` | 消费去重、退避、DLQ、重投、通知消费者、超时关单、审计、保留清理、故障演练 |
