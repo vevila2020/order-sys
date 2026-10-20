@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     为本地开发建立 / 停止 / 查看到远程 MySQL 的 SSH 隧道。
 
@@ -104,7 +104,7 @@ function Start-Tunnel {
     $existing = Get-TunnelProcess
     if ($null -ne $existing) {
         Write-Host "tunnel already running (pid $($existing.Id))" -ForegroundColor Yellow
-        Write-Host "  127.0.0.1:$LocalPort -> ${RemoteHost}:${RemotePort} -> ${RemoteDbHost}:${RemoteDbPort}"
+        Write-Host "  127.0.0.1:$LocalPort -> $RemoteHost`:$RemotePort -> $RemoteDbHost`:$RemoteDbPort"
         return 0
     }
 
@@ -125,8 +125,8 @@ function Start-Tunnel {
         '-o', 'BatchMode=yes'
         '-p', "$RemotePort"
         # 只绑回环地址，避免把数据库端口暴露给局域网。
-        '-L', "127.0.0.1:${LocalPort}:${RemoteDbHost}:${RemoteDbPort}"
-        "${SshUser}@${RemoteHost}"
+        '-L', "127.0.0.1:$LocalPort`:$RemoteDbHost`:$RemoteDbPort"
+        "$SshUser@$RemoteHost"
     )
     if ($KeyFile) {
         $sshArgs = @('-i', $KeyFile) + $sshArgs
@@ -142,17 +142,19 @@ function Start-Tunnel {
         Start-Sleep -Milliseconds 250
         if ($proc.HasExited) {
             Remove-Item -LiteralPath $StateFile -ErrorAction SilentlyContinue
-            Write-Host "ssh exited with code $($proc.ExitCode)" -ForegroundColor Red
+            # Start-Process -PassThru 返回的 Process 对象拿不到退出码（读出来是
+            # 空值），因此这里只报告"已退出"，具体原因由 ssh 自身的 stderr 给出。
+            Write-Host 'ssh exited before the tunnel was established' -ForegroundColor Red
             Write-Host '  常见原因：私钥未加入 ssh-agent、服务器拒绝该公钥、端口被占用。' -ForegroundColor Yellow
             Write-Host '  排查：ssh-add -l 查看已加载密钥；ssh -v 查看认证过程。' -ForegroundColor Yellow
             return 1
         }
         if (Test-LocalPortOpen -Port $LocalPort) {
             Write-Host "tunnel started (pid $($proc.Id))" -ForegroundColor Green
-            Write-Host "  127.0.0.1:$LocalPort -> ${RemoteHost}:${RemotePort} -> ${RemoteDbHost}:${RemoteDbPort}"
+            Write-Host "  127.0.0.1:$LocalPort -> $RemoteHost`:$RemotePort -> $RemoteDbHost`:$RemoteDbPort"
             Write-Host ''
             Write-Host '在 .env 中使用（注意必须是 127.0.0.1，不能用 localhost）：' -ForegroundColor Cyan
-            Write-Host "  MYSQL_DSN=`"dev:<密码>@tcp(127.0.0.1:${LocalPort})/order_sys?parseTime=true&loc=UTC`""
+            Write-Host "  MYSQL_DSN=`"dev:<密码>@tcp(127.0.0.1:$LocalPort)/order_sys?parseTime=true&loc=UTC`""
             return 0
         }
     }
@@ -184,12 +186,15 @@ function Show-Status {
     }
     $portState = if (Test-LocalPortOpen -Port $LocalPort) { 'listening' } else { 'NOT listening' }
     Write-Host "tunnel running (pid $($proc.Id)), local port $LocalPort : $portState" -ForegroundColor Green
-    Write-Host "  ${RemoteHost}:${RemotePort} -> ${RemoteDbHost}:${RemoteDbPort}"
+    Write-Host "  $RemoteHost`:$RemotePort -> $RemoteDbHost`:$RemoteDbPort"
     return 0
 }
 
-switch ($Action) {
-    'Start' { exit (Start-Tunnel) }
-    'Stop' { exit (Stop-Tunnel) }
-    'Status' { exit (Show-Status) }
+# 先用变量接住返回值再 exit：写成 `exit (Start-Tunnel)` 时，
+# 函数内部 Write-Host 的输出与返回值混在一起，可能让 exit 收到非整数。
+$code = switch ($Action) {
+    'Start' { Start-Tunnel }
+    'Stop' { Stop-Tunnel }
+    'Status' { Show-Status }
 }
+exit ($code -as [int])

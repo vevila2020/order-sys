@@ -23,6 +23,9 @@ Dockerfile  text eol=lf
 
 # PowerShell 脚本本身按 Windows 习惯保留 CRLF；pwsh 两种换行都能解析，
 # 但 CRLF 更贴合在 Windows 上用记事本/VS Code 编辑的实际情况。
+# 注意：含中文注释的 .ps1 必须保存为「UTF-8 with BOM」。Windows PowerShell 5.1
+# 对无 BOM 的脚本按系统 ANSI 代码页（中文 Windows 为 GBK）解码，中文注释会破坏
+# 语法解析并报 "意外的标记 }"。pwsh 7 默认按 UTF-8 读取，两者都能正确解析。
 *.ps1       text eol=crlf
 *.psm1      text eol=crlf
 *.bat       text eol=crlf
