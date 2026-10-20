@@ -24,3 +24,5 @@ coverage.out
 artifacts/
 sbom.json
 sbom.spdx.json
+# gitleaks 的 SARIF 报告（本地执行 `gitleaks detect --report-format=sarif` 时产生）
+results.sarif

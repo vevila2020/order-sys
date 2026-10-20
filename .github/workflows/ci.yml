@@ -32,7 +32,10 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.1.6
+          # 必须用与本项目 Go 版本同期发布的 linter：v2.1.6 的源码分析器
+          # 不认识 go 1.26 的语法特性，会以退出码 3（Failure）直接失败，
+          # 而不是报告具体代码问题。升级 Go 时同步升级此版本。
+          version: v2.15.0
           working-directory: backend
 
   test:
@@ -63,10 +66,18 @@ jobs:
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           cd backend && govulncheck ./...
+      # 直接用官方二进制而不是 gitleaks/gitleaks-action：该 action 需要商用
+      # license（组织账号必须配置 GITLEAKS_LICENSE），本仓库不应依赖个人授权；
+      # 显式指定版本也避免 action 内置默认版本随时间漂移。
+      - name: install gitleaks
+        run: |
+          curl -sSfL -o gitleaks.tar.gz \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          gitleaks version
       - name: gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gitleaks detect --source . --redact --exit-code 2 --log-opts="--no-merges --first-parent -1"
       - name: sbom
         run: |
           go install github.com/anchore/syft/cmd/syft@latest
@@ -87,7 +98,9 @@ jobs:
       - name: build worker image
         run: docker build -f backend/Dockerfile --build-arg TARGET=worker -t order-sys-worker:ci backend
       - name: trivy scan
-        uses: aquasecurity/trivy-action@0.28.0
+        # 原值 0.28.0 缺少 v 前缀，GitHub 无法解析该 action 版本，导致 job 在
+        # “Set up job”阶段直接失败。
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: order-sys-api:ci
           severity: CRITICAL,HIGH

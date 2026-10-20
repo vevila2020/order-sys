@@ -11,6 +11,16 @@
 | `security` | `govulncheck`、`gitleaks`、SBOM | 漏洞、明文密钥 |
 | `docker` | 构建 api/worker 镜像、Trivy 扫描 | 镜像不可构建或存在高危漏洞 |
 
+### 工具版本约束
+
+- **`golangci-lint` 必须与 Go 版本同期。** linter 的源码分析器内置了它发布时的 Go 语法支持；
+  版本过旧时面对新语法会以退出码 3（`Failure`）整体失败，而不是给出具体告警。
+  当前固定 `v2.15.0`，与 Go 1.26.x 匹配；升级 Go 时同步升级此项。
+- **gitleaks 直接使用官方二进制**（当前 `v8.30.1`）。`gitleaks/gitleaks-action@v2`
+  对组织账号强制要求 `GITLEAKS_LICENSE`（商用授权），本仓库不依赖该授权。
+- **Trivy action 必须带 `v` 前缀**（`aquasecurity/trivy-action@v0.36.0`）；
+  写成 `0.28.0` 会让 GitHub 在 *Set up job* 阶段就解析失败。
+
 ## 本地复现
 
 ```bash
@@ -32,7 +42,7 @@ CGO_ENABLED=1 go test -race -count=1 ./...
 ```bash
 go install golang.org/x/vuln/cmd/govulncheck@latest
 go install github.com/anchore/syft/cmd/syft@latest
-go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
 go install github.com/zricethezav/gitleaks/v8@latest
 ```
 

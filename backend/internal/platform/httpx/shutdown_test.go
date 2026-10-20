@@ -59,8 +59,9 @@ func TestServerWaitsForInFlightRequest(t *testing.T) {
 	}()
 
 	select {
-	case <-shutdownDone:
-		t.Fatal("Shutdown returned before the in-flight request completed")
+	case err := <-shutdownDone:
+		// Shutdown 提前返回即为失败，err 一并输出便于定位原因。
+		t.Fatalf("Shutdown returned before the in-flight request completed: %v", err)
 	case <-time.After(100 * time.Millisecond):
 		// 预期：在途请求未完成时 Shutdown 仍在等待。
 	}

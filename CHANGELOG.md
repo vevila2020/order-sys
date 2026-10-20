@@ -33,6 +33,16 @@
 - Dockerfile 新增 `GOPROXY` 构建参数（默认官方代理），Compose 与 Makefile 透传同名变量，
   便于在官方代理不可达的环境中构建镜像。
 
+### CI
+
+- `golangci-lint` 由 `v2.1.6` 升至 `v2.15.0`：旧版无法分析 Go 1.26 语法，
+  以退出码 3 整体失败。同时修复它新报出的 `errcheck`（`shutdown_test.go` 未处理
+  `Shutdown` 返回值）。
+- `security` job 改为直接下载 gitleaks `v8.30.1` 二进制：`gitleaks/gitleaks-action@v2`
+  要求组织账号提供商用 license。
+- `docker` job 的 Trivy action 修正为 `aquasecurity/trivy-action@v0.36.0`
+  （原 `0.28.0` 缺少 `v` 前缀，GitHub 无法解析）。
+
 ## [0.1.0-m0] - 2026-10-19
 
 ### Added

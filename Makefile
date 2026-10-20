@@ -89,7 +89,7 @@ security: ## govulncheck + secret scan
 		echo "govulncheck not installed; go install golang.org/x/vuln/cmd/govulncheck@latest"; exit 1; \
 	fi
 	@if command -v gitleaks >/dev/null 2>&1; then \
-		gitleaks detect --source . --no-git --redact; \
+		gitleaks detect --source . --redact --exit-code 2; \
 	else \
 		echo "gitleaks not installed; see docs/runbooks/ci.md"; exit 1; \
 	fi
