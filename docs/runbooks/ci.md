@@ -19,15 +19,28 @@ make security    # govulncheck + gitleaks（需本地安装）
 make sbom        # 生成 artifacts/sbom.spdx.json
 ```
 
-`-race` 在 Windows 上需要 CGO 与 C 编译器；本地无法运行时以 Linux CI 结果为准。
+`-race` 在 Windows 上需要 CGO 与 C 编译器。Windows 默认没有 gcc，可改用 WSL：
+
+```bash
+# Debian / Ubuntu（WSL 同样适用）
+sudo apt-get install -y gcc
+CGO_ENABLED=1 go test -race -count=1 ./...
+```
 
 ## 工具安装
 
 ```bash
 go install golang.org/x/vuln/cmd/govulncheck@latest
 go install github.com/anchore/syft/cmd/syft@latest
-# golangci-lint / gitleaks 参考官方安装文档
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
+go install github.com/zricethezav/gitleaks/v8@latest
 ```
+
+`govulncheck` 必须用与被测模块相同的工具链构建：它用 `go list` 解析源码，
+工具链低于 `go.mod` 的 `go` 指令时会直接拒绝分析。升级 Go 后请重新执行上面的 `go install`。
+
+密钥扫描的误报放行写在仓库根目录 `.gitleaks.toml`，每条都注明理由；
+新增放行项必须有明确依据，不得整目录豁免源码。
 
 ## 分支保护
 

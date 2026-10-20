@@ -158,7 +158,7 @@
 
 | 领域 | 选定技术/库 | 模块路径 | 用途与约束 | 首次启用 |
 | --- | --- | --- | --- | --- |
-| 语言 | Go 1.25.x | `go.mod` | 以 `go.mod` 为准，跟随官方支持的两个次版本；所有 I/O 传递 `context.Context` | M0 |
+| 语言 | Go 1.26.x（当前 1.26.9） | `go.mod` | 以 `go.mod` 为准，跟随官方支持的两个次版本；所有 I/O 传递 `context.Context` | M0 |
 | HTTP | Gin | `github.com/gin-gonic/gin` | 路由分组、中间件链、参数绑定与校验；handler 不写业务逻辑 | M0 |
 | 配置 | Viper | `github.com/spf13/viper` | YAML 默认值 + 环境变量覆盖 + 启动校验 | M0 |
 | 日志 | zap | `go.uber.org/zap` | JSON 结构化日志；字段约定见 FR-028 | M0 |

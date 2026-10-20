@@ -12,8 +12,10 @@ import (
 // Issuer 与 Audience 是本服务签发 token 的固定标识；校验时必须匹配，
 // 防止其他系统的 token 被误用。
 const (
-	TokenIssuer   = "order-sys"
-	TokenAudience = "order-sys-api"
+	TokenIssuer = "order-sys"
+	// TokenAudience 是 JWT 的 aud 声明值，不是凭据；gosec 的 G101 会按
+	// "硬编码字符串看着像密钥"报警，这里显式豁免并保留标识符语义。
+	TokenAudience = "order-sys-api" //nolint:gosec // aud 声明值，非密钥
 )
 
 // minSecretLen 是 HS256 密钥的最小长度（32 字节对应 256 bit）。

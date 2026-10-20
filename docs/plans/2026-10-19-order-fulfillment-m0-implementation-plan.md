@@ -518,7 +518,7 @@ docker compose ps
 
 **步骤：**
 
-1. 多阶段：`golang:1.25-alpine` 构建，运行阶段使用固定版本的 `alpine`（保留 `wget` 供 Compose 健康检查），创建非 root 用户。
+1. 多阶段：`golang:1.26.9-alpine` 构建（补丁版本必须 ≥ `go.mod` 的 `go` 指令），运行阶段使用固定版本的 `alpine`（保留 `wget` 供 Compose 健康检查），创建非 root 用户。
 2. `CGO_ENABLED=0`；二进制静态链接。
 3. 通过构建参数 `TARGET=api|worker` 生成两个镜像；Compose 分别构建，避免一个镜像内包含不使用的入口。
 4. 镜像标签不可变；CI 记录 digest。

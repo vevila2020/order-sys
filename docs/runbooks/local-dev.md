@@ -4,7 +4,7 @@
 
 | 工具 | 版本 | 用途 |
 | --- | --- | --- |
-| Go | 1.25+ | 构建与测试（`backend/go.mod` 为准） |
+| Go | 1.26+ | 构建与测试（`backend/go.mod` 为准） |
 | Docker + Compose | 最新稳定版 | 本地依赖环境 |
 | make | GNU Make | 统一命令入口（Windows 可用 Git Bash + make 或 WSL） |
 | curl | 任意 | 接口验证 |

@@ -19,11 +19,16 @@ func startBlockingServer(t *testing.T, release <-chan struct{}) (string, *http.S
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		<-release
-		finished <- time.Now()
-		w.WriteHeader(http.StatusOK)
-	})}
+	// 这是测试用的最短 server 构造，只关心 Shutdown 的等待语义。
+	// 生产路径的 ReadHeaderTimeout 由 httpserver.NewHTTPServer 统一设置，
+	// 因此对 G112（Slowloris）显式豁免，避免测试复制生产配置而掩盖真实意图。
+	srv := &http.Server{ //nolint:gosec // 测试 server，生产配置见 httpserver.NewHTTPServer
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			<-release
+			finished <- time.Now()
+			w.WriteHeader(http.StatusOK)
+		}),
+	}
 
 	go func() { _ = srv.Serve(ln) }()
 	return "http://" + ln.Addr().String(), srv, &time.Time{}
@@ -36,7 +41,8 @@ func TestServerWaitsForInFlightRequest(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		resp, err := http.Get(url)
+		// 地址来自测试自建的监听器，G107 按"变量 URL"报警在这里不成立。
+		resp, err := http.Get(url) //nolint:gosec // 测试内自建地址
 		if err == nil {
 			_ = resp.Body.Close()
 		}
@@ -73,7 +79,8 @@ func TestShutdownTimesOutWithGraceExceeded(t *testing.T) {
 	_ = url
 
 	go func() {
-		resp, err := http.Get(url)
+		// 同上：地址来自测试自建监听器。
+		resp, err := http.Get(url) //nolint:gosec // 测试内自建地址
 		if err == nil {
 			_ = resp.Body.Close()
 		}
@@ -93,9 +100,11 @@ func TestRunServerReturnsOKWhenListenFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
-	srv := &http.Server{Addr: ln.Addr().String(), Handler: http.NewServeMux()}
+	// 该 server 用于制造"地址已被占用"，不会真正对外服务，
+	// 因此不配置 ReadHeaderTimeout（G112 豁免理由同 startBlockingServer）。
+	srv := &http.Server{Addr: ln.Addr().String(), Handler: http.NewServeMux()} //nolint:gosec // 不实际 Serve
 	if code := RunServer(srv, time.Second, zap.NewNop()); code != ExitFailure {
 		t.Fatalf("exit code: got %d want %d", code, ExitFailure)
 	}

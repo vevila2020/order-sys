@@ -2,10 +2,10 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 日期 | 2026-10-19 |
+| 日期 | 2026-10-20 |
 | 版本 | `v0.1.0-m0`（代码完成，tag 待打） |
-| 环境 | Windows 11 Pro / Go 1.26.0（module `go 1.25.0`）/ Docker CLI 29.6.1 |
-| 结论 | 代码与文档完成；依赖 Docker 守护进程与 make 的验收项未执行 |
+| 环境 | Windows 11 Pro / Go 1.26.9（module `go 1.26.9`）/ WSL Ubuntu 24.04（Linux amd64）/ Docker 29.9.1 + Compose v5.6.0 |
+| 结论 | §3.3 退出标准在本机全部验证通过；待推送后确认 CI 与打 tag |
 
 ## 1. 已验证
 
@@ -27,18 +27,33 @@
 | 身份上下文 | `GET /api/v1/me` + buyer token | 返回 token 中的 `sub` |
 | 角色矩阵 | buyer 访问 `/api/v1/admin/ping` | `403` |
 | 指标 | `curl localhost:8080/metrics` | 含 `http_requests_total`、`http_request_duration_seconds`、`http_requests_in_flight`、Go runtime 指标 |
+| worker 管理端口 | `curl localhost:8081/health/{live,ready}`、`/metrics` | 全部 200，ready 返回 config 检查结果 |
+| 限流/体限配置 | `make ci` 中中间件测试 | 通过 |
+| `make ci` | `fmt-check + vet + test + build` | 退出码 0 |
+| `golangci-lint` | `golangci-lint run ./...`（v2.1.6，项目 `.golangci.yml`） | `0 issues.` |
+| `govulncheck` | `cd backend && govulncheck ./...`（Go 1.26.9 构建） | `No vulnerabilities found.`（0 个可达） |
+| 密钥扫描 | `gitleaks detect --source . --no-git --redact` 与 git 历史模式 | 均为 `no leaks found` |
+| SBOM | `syft dir:backend -o spdx-json=artifacts/sbom.spdx.json` | 已生成（约 226 KB） |
+| Compose 语法 | `docker compose config --quiet` | 退出码 0 |
+| `go test -race` | WSL Ubuntu 24.04 + Go 1.26.9 + gcc 13.3，`CGO_ENABLED=1 go test -race -count=1 ./...` | 全部通过 |
+| SIGTERM 优雅退出 | WSL 与本机容器内 `docker compose stop -t 20 api` | 日志出现 `shutdown signal received`、`http server stopped`，容器退出码 0 |
+| 版本注入 | `make build` 后 `./bin/api --version` | `8a6ab34 (commit 8a6ab34, built ...)` |
+| Compose 全栈 | `GOPROXY=... docker compose up -d` | 8 个服务全部启动；mysql/redis/kafka/api/worker healthy |
+| 非 root 运行 | `docker compose exec api id` | `uid=100(app) gid=101(app)` |
+| Prometheus 抓取 | `/api/v1/targets` 查询 | api、worker、prometheus 三个 target 均 `health=up` |
+| 指标入库 | `/api/v1/query?query=http_requests_total` | 返回带 method/route/status 标签的序列 |
+| Grafana / Jaeger | `curl localhost:3000/login`、`localhost:16686` | 均 200 |
+| 容器认证矩阵 | buyer → `/api/v1/me` 200、`/api/v1/admin/ping` 403；无 token 401；operator → 200 | 通过 |
+| 镜像构建 | `docker compose build` | api、worker 构建成功 |
+| 镜像漏洞扫描 | Trivy 0.58.1，`--severity CRITICAL,HIGH --exit-code 1` | api 与 worker 均 `Total: 0` |
 
-## 2. 未验证（受环境限制）
+## 2. 构建环境说明
 
-| 检查 | 原因 | 后续动作 |
-| --- | --- | --- |
-| `make setup/up/down/...` | 当前 Windows 环境未安装 make | 在安装 GNU Make 的环境或 WSL 执行 |
-| `make up` 拉起全部依赖 | Docker CLI 存在但 Docker Desktop 守护进程未运行 | 启动 Docker Desktop 后执行 `make setup && make up` |
-| 镜像构建与非 root 检查 | 同上，`docker build` 无法连接 daemon | 启动 daemon 后执行 `make docker-build` |
-| `go test -race` | Windows 无 gcc，`-race` 需要 CGO | Linux CI 执行 |
-| SIGTERM 优雅退出 | Windows 下 Git Bash 的 kill 走 TerminateProcess，进程无法捕获 SIGTERM（退出码 143） | 在 Linux 容器/CI 验证；单元测试已覆盖 Shutdown 等待与超时 |
-| Prometheus 抓取 API | 依赖 Compose 运行 | `make up` 后访问 Prometheus targets 页面 |
-| CI 工作流实际运行 | 仓库未配置 remote，无法触发 Actions | 推送后检查四个 job |
+| 现象 | 处理 |
+| --- | --- |
+| `golang:1.26.10-*` 镜像尚不存在（官方最新为 1.26.9） | `go.mod` 固定 `go 1.26.9`，Dockerfile 使用 `golang:1.26.9-alpine`；两者必须同步，否则镜像内 `go mod download` 直接失败 |
+| 容器内访问 `proxy.golang.org` 报 EOF | Dockerfile 增加 `GOPROXY` 构建参数，Compose 与 Makefile 透传同名变量；默认仍为官方代理 |
+| Trivy 无法下载漏洞库（`mirror.gcr.io` 不可达） | 预先用可达镜像源拉取 `aquasec/trivy-db:2` 并导入本地缓存卷，再用 `--skip-db-update --offline-scan` 扫描 |
 
 ## 3. 单元测试覆盖（本地实测）
 
@@ -46,8 +61,8 @@
 | --- | --- |
 | `authx` | 90.0% |
 | `configx` | 81.9% |
-| `healthx` | 82.8% |
-| `httpserver` | 87.9% |
+| `healthx` | 96.6% |
+| `httpserver` | 81.6% |
 | `httpx` | 64.2% |
 | `httpx/middleware` | 89.2% |
 | `loggerx` | 67.6% |
@@ -67,9 +82,23 @@
 
 ## 5. 进入 M1 前必须完成
 
-1. 启动 Docker Desktop，执行 `make setup && make up`，确认全部服务 healthy。
-2. 在 Linux/CI 执行 `go test -race -count=1 ./...`。
-3. 在 Linux 容器验证 SIGTERM 优雅退出与退出码 0。
-4. 推送仓库并确认 CI 四个 job 全绿。
-5. 归档 SBOM 与镜像扫描结果。
-6. 打 tag `v0.1.0-m0`。
+- [x] 1. 在 Linux（WSL Ubuntu 24.04 / amd64）执行 `go test -race -count=1 ./...`，全部通过。
+- [x] 2. 在 Linux 验证 SIGTERM 优雅退出：退出码 0，日志依次出现 `shutdown signal received` 与 `http server stopped`。
+- [x] 3. `golangci-lint`、`govulncheck`、`gitleaks` 本地执行通过（见 §1）。
+- [x] 4. 生成并归档 `artifacts/sbom.spdx.json`。
+- [x] 5. 启动 Docker Desktop，执行 `docker compose up -d`，全部服务 healthy。
+- [x] 6. 构建 api/worker 镜像，验证非 root（uid 100），Trivy 扫描 0 HIGH/CRITICAL。
+- [ ] 7. 推送仓库并确认 CI 四个 job 全绿。
+- [ ] 8. 打 tag `v0.1.0-m0`。
+
+> 第 7–8 项依赖推送，须在合并前完成。
+
+## 6. M0 验收中修复的缺陷
+
+| 缺陷 | 影响 | 处理 |
+| --- | --- | --- |
+| `healthx.Result.Duration` 用 `time.Duration` 序列化 | 字段名为 `duration_ms`，实际输出纳秒（5ms → `5000000`），探针会把健康检查耗时高估 10^6 倍 | 改为 `int64` 毫秒；新增 `TestReadyHandlerDurationIsMilliseconds` 锁定单位 |
+| `golangci-lint` 6 个告警 | CI lint job 必红 | 修正 errcheck；对测试 server 与非凭据常量加带理由的 `nolint` |
+| `govulncheck` 25 个可达漏洞 | CI security job 必红 | Go 基线升至 1.26.9，升级 x/net、x/crypto、x/sys、x/text、quic-go |
+| `gitleaks` 3 处误报 | CI security job 必红 | 新增 `.gitleaks.toml`，仅放行 `.env`、SBOM 与文档示例字面量 |
+| 运行镜像 openssl 有 HIGH 漏洞 | CI docker job 必红 | 运行阶段先 `apk upgrade` 再安装依赖 |

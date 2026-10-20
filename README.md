@@ -7,7 +7,7 @@ Go 电商订单与秒杀后端，按企业级交付标准组织：明确的模�
 
 ## 快速开始（约 5 分钟）
 
-前置：Go 1.25+、Docker Compose、make、curl。
+前置：Go 1.26+、Docker Compose、make、curl。
 
 ```bash
 make setup        # 生成 .env 并填充随机密钥（不覆盖已存在的文件）
@@ -109,6 +109,6 @@ docs/                   # 需求、计划、ADR、运行手册、API
 
 ## 技术栈
 
-Go 1.25 · Gin · Viper · zap · JWT v5 · Prometheus · google/uuid；
+Go 1.26 · Gin · Viper · zap · JWT v5 · Prometheus · google/uuid；
 GORM + golang-migrate（M1）、Redis + go-redis（M3）、Kafka + kafka-go（M3）、
 asynq（M3）、OpenTelemetry（M5）。选型全周期冻结，见 [ADR-0001](docs/adr/0001-freeze-technology-stack.md)。

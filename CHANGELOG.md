@@ -4,6 +4,35 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Go 版本基线由 1.25.x 升至 1.26.9（`go.mod`、Dockerfile、README、ADR-0001、需求 §9.1 同步）。
+  原因：`net/http`、`crypto/tls`、`crypto/x509` 等标准库漏洞的修复版本为 Go 1.26.9+，
+  而 `golang.org/x/net@v0.60.0`（修复 4 个漏洞）要求 go ≥ 1.26。
+- 升级间接依赖：`golang.org/x/net` v0.48.0 → v0.60.0、`golang.org/x/crypto` → v0.57.0、
+  `golang.org/x/sys` → v0.48.0、`golang.org/x/text` → v0.42.0、
+  `github.com/quic-go/quic-go` v0.59.0 → v0.59.1。
+  `govulncheck ./...` 现为 0 个可达漏洞。
+
+### Fixed
+
+- **`/health/ready` 的 `duration_ms` 单位错误**：`healthx.Result.Duration` 原为
+  `time.Duration`，JSON 编码输出纳秒（5ms 变成 `5000000`），而字段名声明是毫秒。
+  现改为 `int64` 毫秒，并新增 `TestReadyHandlerDurationIsMilliseconds` 锁定单位。
+- 运行镜像的 openssl 存在 HIGH 漏洞（CVE-2026-84782）：运行阶段先 `apk upgrade` 再装依赖，
+  Trivy 对 api/worker 镜像现为 `Total: 0`。
+- `golangci-lint run ./...` 清零：修正 `httpx/shutdown_test.go` 的 errcheck 与 gosec 告警，
+  并为 `authx.TokenAudience`（JWT aud 声明值，非凭据）添加带理由的 `nolint`。
+  此前 lint job 会因 6 个问题失败。
+- 新增 `.gitleaks.toml`：只放行 `.env`、`artifacts/`（SBOM）与需求文档中的示例
+  Idempotency-Key 字面量；真实凭据仍会被拦截。
+- 修正 `gofmt` 对 `authx/jwt.go` 的 import 分组。
+
+### Added
+
+- Dockerfile 新增 `GOPROXY` 构建参数（默认官方代理），Compose 与 Makefile 透传同名变量，
+  便于在官方代理不可达的环境中构建镜像。
+
 ## [0.1.0-m0] - 2026-10-19
 
 ### Added

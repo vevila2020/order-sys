@@ -108,6 +108,9 @@ services:
       context: ./backend
       args:
         TARGET: api
+        # 构建期拉取 Go 模块的代理；官方代理不可达时可覆盖，
+        # 例如在 .env 中设置 GOPROXY=https://goproxy.cn,direct。
+        GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
     environment:
       APP_ENV: ${APP_ENV:-local}
       CONFIG_FILE: ""
@@ -141,6 +144,7 @@ services:
       context: ./backend
       args:
         TARGET: worker
+        GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
     environment:
       APP_ENV: ${APP_ENV:-local}
       CONFIG_FILE: ""

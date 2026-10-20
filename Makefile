@@ -8,6 +8,9 @@ GO := cd $(BACKEND) && go
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+# 镜像构建期拉取 Go 模块的代理。默认官方代理；网络受限时可覆盖：
+#   make docker-build GOPROXY=https://goproxy.cn,direct
+GOPROXY ?= https://proxy.golang.org,direct
 LDFLAGS := -X github.com/vevila2020/order-sys/internal/version.Version=$(VERSION) \
            -X github.com/vevila2020/order-sys/internal/version.Commit=$(COMMIT) \
            -X github.com/vevila2020/order-sys/internal/version.BuildDate=$(BUILD_DATE)
@@ -102,8 +105,8 @@ sbom: ## 生成 SBOM 到 artifacts/
 ci: fmt-check vet test build ## 本地执行与 CI 同等的核心检查
 
 docker-build: ## 构建 api/worker 镜像
-	docker build -f $(BACKEND)/Dockerfile --build-arg TARGET=api -t order-sys-api:$(VERSION) $(BACKEND)
-	docker build -f $(BACKEND)/Dockerfile --build-arg TARGET=worker -t order-sys-worker:$(VERSION) $(BACKEND)
+	docker build -f $(BACKEND)/Dockerfile --build-arg TARGET=api --build-arg GOPROXY=$(GOPROXY) -t order-sys-api:$(VERSION) $(BACKEND)
+	docker build -f $(BACKEND)/Dockerfile --build-arg TARGET=worker --build-arg GOPROXY=$(GOPROXY) -t order-sys-worker:$(VERSION) $(BACKEND)
 
 clean: ## 清理构建产物（不动数据卷）
 	rm -rf $(BACKEND)/bin artifacts coverage.out
