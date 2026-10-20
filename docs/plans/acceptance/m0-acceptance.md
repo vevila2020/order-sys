@@ -3,7 +3,7 @@
 | 项目 | 内容 |
 | --- | --- |
 | 日期 | 2026-10-20 |
-| 版本 | `v0.1.0-m0`（代码完成，tag 待打） |
+| 版本 | `v0.1.0-m0`（已打 tag，commit `a8af215`） |
 | 环境 | Windows 11 Pro / Go 1.26.9（module `go 1.26.9`）/ WSL Ubuntu 24.04（Linux amd64）/ Docker 29.9.1 + Compose v5.6.0 |
 | 结论 | §3.3 退出标准在本机全部验证通过；待推送后确认 CI 与打 tag |
 
@@ -88,10 +88,10 @@
 - [x] 4. 生成并归档 `artifacts/sbom.spdx.json`。
 - [x] 5. 启动 Docker Desktop，执行 `docker compose up -d`，全部服务 healthy。
 - [x] 6. 构建 api/worker 镜像，验证非 root（uid 100），Trivy 扫描 0 HIGH/CRITICAL。
-- [ ] 7. 推送仓库并确认 CI 四个 job 全绿。
-- [ ] 8. 打 tag `v0.1.0-m0`。
+- [x] 7. 推送仓库并确认 CI 四个 job 全绿（run `39380574773`，commit `a8af215`）。
+- [x] 8. 打 tag `v0.1.0-m0` 并推送。
 
-> 第 7–8 项依赖推送，须在合并前完成。
+M0 退出标准全部完成。
 
 ## 6. M0 验收中修复的缺陷
 
