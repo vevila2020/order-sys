@@ -34,6 +34,13 @@
 
 ### Added
 
+- M1-T09 inventory 仓储与条件更新（`internal/inventory/app/ports.go`、
+  `infra/{inventory_repo,reservation_repo}.go`）：预占、确认、释放全部使用单条
+  条件更新并校验 `RowsAffected`，0 行翻译成领域错误而不是静默成功；释放的
+  回填目标由 `OrderSource` 决定（普通订单回 `available`，活动订单回 `allocated`）。
+  预占头与明细同事务写入，`Transition` 以 `WHERE status = 'RESERVED'` 做条件迁移。
+  集成测试覆盖并发不超卖（40 并发 / 库存 5）、重复确认失败、回滚无残留。
+- `db.Tx` 类型别名：app 层声明端口时用它表示事务句柄，避免直接 import gorm。
 - M1-T08 幂等记录与请求指纹（`internal/platform/idempotency`）：`Fingerprint`
   按 ADR-0006 规范化 JSON（键排序、数组保序、`UseNumber` 保精度）；`Key` 校验
   长度 8–128 与字符集；`Store.Begin/Complete` 在调用方事务内读写

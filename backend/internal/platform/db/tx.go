@@ -37,6 +37,16 @@ func retryPolicyOrDefault(p RetryPolicy) RetryPolicy {
 	return p
 }
 
+// Tx 是事务句柄的别名，供 app 层声明端口签名时使用。
+//
+// app 层不能 import gorm（archtest 禁止），但仓储端口必须接收事务句柄才能与
+// 业务写同事务。别名的意义不是隐藏类型——*gorm.DB 的能力依然完整可见——而是把
+// "框架类型出现在业务签名里"这件事收敛到一处，方便日后的替换与审计。
+//
+// 使用约束与 TransactionManager 相同：**只允许原样透传**，不得对 tx 调用
+// ORM 方法（见 TransactionManager 的文档注释）。
+type Tx = *gorm.DB
+
 // TransactionManager 在单个数据库事务内执行用例。
 //
 // 实现约定（ADR-0003）：
