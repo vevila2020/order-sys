@@ -13,6 +13,12 @@
 - **部署环境：Linux Debian amd64（x86_64）。** 容器镜像、部署脚本、systemd 单元等以该平台为准，不要引入仅 Windows 或非 amd64 可用的假设。
 - 需要同时给出两套命令时，分别标注「PowerShell 7」与「Debian」，并注意两者路径分隔符、环境变量语法、换行符差异。
 
+## Git 提交与推送
+
+- **提交信息使用中文**，言语精简：标题一行说清改了什么，正文只写必要的动机与取舍，不罗列实现细节。
+- 格式沿用 `type(scope): 描述`，例如 `feat(order): 实现幂等下单用例`。
+- 推送前确认工作区干净、本地测试通过；推送目标为 `origin/master`。
+
 ## 项目约束（摘自需求规格 v3.1）
 
 - 技术栈全周期冻结：Gin、Viper、zap、GORM、golang-migrate、go-redis、kafka-go、asynq、google/uuid、golang-jwt/v5、Prometheus、OpenTelemetry。不中途换库。
