@@ -64,6 +64,12 @@
   库存恒等式 `available + allocated + reserved + sold = total` 在每次变更后自校验；
   预占状态机只允许 `RESERVED → CONFIRMED / RELEASED` 且只能发生一次；
   `Release` 按 `OrderSource` 决定回填到可售池还是活动额度。覆盖率 98.5%。
+- `internal/order/domain`：`Order` 聚合与 `OrderItem` 明细。状态机
+  `PENDING_PAYMENT → COMPLETED / CANCELLED / PAYMENT_FAILED / PAYMENT_EXPIRED`；
+  同一终态重复迁移是幂等 no-op，相反终态返回冲突。金额运算集中在 `money.go`，
+  含溢出检测与负数拒绝。覆盖率 100%。
+- `internal/payment/domain`：`Payment` 状态机与"相同结果幂等、相反结果冲突"。
+  迁移方法返回 `(changed bool, error)`，让上层区分真实迁移与重放。覆盖率 100%。
 - `ADR-0003 事务与并发控制` 由 Proposed 转为 **Accepted**：固定 `TransactionManager.Do`
   签名、条件更新与 `RowsAffected` 语义、按 `sku_id` 字典序加锁、1213/1205 重试
   （3 次，10/20/40ms + ±20% 抖动）、耗尽映射为 `DEPENDENCY_UNAVAILABLE`。
