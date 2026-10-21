@@ -60,6 +60,10 @@
   `retryVetoer` 接口允许包装错误否决重试（供幂等键等待使用，ADR-0006）。
 - `api` 启动时连接 MySQL 并做自检，失败退出非 0；`/health/ready` 新增 `mysql` 关键检查。
 - `mysql.dsn` 改为启动期必填校验；错误只报"缺失"，不回显值。
+- `internal/inventory/domain`：`SKU`、`Inventory`、`Reservation` 三个领域模型。
+  库存恒等式 `available + allocated + reserved + sold = total` 在每次变更后自校验；
+  预占状态机只允许 `RESERVED → CONFIRMED / RELEASED` 且只能发生一次；
+  `Release` 按 `OrderSource` 决定回填到可售池还是活动额度。覆盖率 98.5%。
 - `ADR-0003 事务与并发控制` 由 Proposed 转为 **Accepted**：固定 `TransactionManager.Do`
   签名、条件更新与 `RowsAffected` 语义、按 `sku_id` 字典序加锁、1213/1205 重试
   （3 次，10/20/40ms + ±20% 抖动）、耗尽映射为 `DEPENDENCY_UNAVAILABLE`。

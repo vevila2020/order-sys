@@ -353,6 +353,25 @@ go test ./internal/inventory/domain -race -count=1 -cover
 
 **退出标准：** 覆盖率 ≥ 80%；所有状态迁移与不变量有测试。
 
+**完成记录（2026-10-21）：** 覆盖率 98.5%（目标 80%）。
+
+- **`Validate()` 在每个变更方法末尾调用**，而不是只靠数据库 CHECK 兜底。
+  差别在错误归属：CHECK 报错时信息指向 SQL 与列名，而 Validate 直接指出哪个桶
+  算错了。两者的测试各写了一组（`TestInvariantHoldsAcrossOperations` 与
+  `TestInventoryBalanceConstraint`）。
+- **`Reserve` 的校验顺序是"数量 → 库存"**，不能反。先查库存的话 `qty=0` 会命中
+  `available < 0` 分支吗？不会命中，但 `qty=-1` 会被判定为"库存充足"然后扣成负数。
+  顺序固定后，`qty<=0` 一律是参数错误，客户端知道要改请求而不是等补货。
+- **`Release` 预留 `OrderSource`**：M1 只有普通订单，但活动订单必须回 `allocated`。
+  若不预留，M3 要改签名并波及所有调用方；若两者都回 `available`，一次活动订单
+  取消会把活动专属额度泄露成普通可售量。未知来源按普通订单处理（宁可多卖，
+  也不要把额度永久锁死在已结束的活动里）。
+- **`Rehydrate*` 系列不复用 `New*`**：存量数据不该因为新增校验而读不出来。
+  但仍守住两条底线——未知枚举值拒绝、库存恢复后立即校验恒等式。
+- **架构测试出现误报并已修正**：`domain_test` 外部测试包必须 import `domain`，
+  被"领域层只用标准库"规则拦下。豁免"导入自身包"，并用临时违规文件验证
+  豁免没有连带放过其他内部包（`domain` import `infra` 仍被拦截）。
+
 **需求映射：** FR-001、FR-008、§4.3。
 
 **建议提交：** `feat(inventory): add sku, inventory and reservation domain models`

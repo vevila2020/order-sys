@@ -45,7 +45,15 @@ func TestBusinessLayering(t *testing.T) {
 			}
 			checked++
 
+			// 包自身路径：外部测试包（package domain_test）必须 import 被测包，
+			// 这不算违反"领域层只用标准库"。不豁免会产生一条无法通过、也无法
+			// 合理关闭的误报——只能把测试降级为内部测试，白白失去黑盒视角。
+			selfPath := modulePath + "/internal/" + m + "/" + layer
+
 			for _, imp := range importsOf(pkg) {
+				if imp == selfPath {
+					continue
+				}
 				if reason, bad := layerRule(m, layer).violation(imp); bad {
 					t.Errorf("internal/%s/%s 违规 import %q：%s", m, layer, imp, reason)
 				}
