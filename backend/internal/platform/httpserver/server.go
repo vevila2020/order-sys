@@ -30,6 +30,23 @@ type ServerDeps struct {
 	Tokens    *authx.TokenService
 	Limiter   ratelimit.Limiter
 	LocalAuth bool
+	// RegisterRoutes 让业务模块把自己的路由挂到已装配好的分组上。
+	//
+	// 为什么用钩子而不是让 httpserver import 各业务模块：platform 不得依赖业务
+	// 模块（ADR-0002，由 internal/archtest 强制）。钩子把"装配"留在 main，
+	// 平台包只提供分组与中间件链。为 nil 时只注册 M0 的基础路由。
+	RegisterRoutes func(RouteGroups)
+}
+
+// RouteGroups 是可供业务模块挂载路由的分组。
+//
+// 每个分组已经带好对应角色的中间件链（auth → role → ratelimit → body_limit），
+// 业务模块直接往上挂，不得自行再叠加认证或改变顺序（需求 §9.3）。
+type RouteGroups struct {
+	// Buyer 要求已认证，不区分角色。
+	Buyer *gin.RouterGroup
+	// Operator 要求已认证且角色为 operator。
+	Operator *gin.RouterGroup
 }
 
 // ServerConfig 是路由装配使用的配置子集。
@@ -81,7 +98,7 @@ func NewEngine(deps ServerDeps) *gin.Engine {
 		)
 	}
 
-	// M0 的受保护路由用于验证认证与角色矩阵；业务路由在 M1 挂载。
+	// 受保护分组：M0 的探测路由与 M1 起的业务路由都挂在这里。
 	// 中间件顺序必须与需求 §9.3 一致：auth → role → ratelimit → body_limit，
 	// 因此每个角色分组都从 v1 直接派生，而不是在已加限流的组上再叠加角色。
 	tokens := deps.Tokens
@@ -119,6 +136,21 @@ func NewEngine(deps ServerDeps) *gin.Engine {
 	operator.GET("/ping", func(c *gin.Context) {
 		httpx.WriteData(c, http.StatusOK, gin.H{"status": "ok"})
 	})
+
+	// 业务模块的路由挂载。
+	//
+	// operator 分组有两个用途：/admin 前缀下的管理探测，以及需求 §8.2 中
+	// 直接挂在 /api/v1 下的管理端点（如 /skus）。后者不能挂在 /admin 上，
+	// 否则路径与契约不符，因此单独派生一个同样中间件链的分组。
+	// 这里从 v1 + 同一个 chain 派生，而不是在已挂载的 operator 组上再派生，
+	// 避免中间件被重复执行两次。
+	operatorV1 := v1.Group("", operatorChain...)
+	if deps.RegisterRoutes != nil {
+		deps.RegisterRoutes(RouteGroups{
+			Buyer:    protected,
+			Operator: operatorV1,
+		})
+	}
 
 	// 未匹配路由返回统一 404 错误体，而不是 gin 的纯文本响应。
 	engine.NoRoute(func(c *gin.Context) {

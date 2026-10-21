@@ -34,6 +34,13 @@
 
 ### Added
 
+- M1-T12 SKU 用例与 HTTP（`internal/inventory/{app/sku.go,http/**}`）：创建时 SKU
+  与 `inventories` 同事务，负初始库存返回 `VALIDATION_FAILED`；查询不存在返回
+  404；更新用 `version` 做乐观锁，不匹配返回 409 且不覆盖已有值；改价不触碰
+  `order_items` 的历史快照。handler 只做绑定、调用、映射，事务与规则都在 app 层。
+- `httpserver.ServerDeps.RegisterRoutes`：平台包通过回调把 buyer/operator 分组
+  交给 main 挂载业务路由，避免 `platform` 反向依赖业务模块（ADR-0002 由
+  archtest 强制）。`/skus` 挂在 `/api/v1` 下而非 `/admin`，与需求 §8.2 一致。
 - M1-T11 payment 仓储（`internal/payment/{app,infra}`）：`uk_payments_order_id`
   保证每单一个支付单；`Transition` 以 `WHERE status = ?` 条件迁移，0 行返回
   `ErrPaymentStateConflict` 交由 app 层判定"重放"还是"相反结果"，而不是在仓储层

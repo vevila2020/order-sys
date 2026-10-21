@@ -13,6 +13,9 @@ import (
 
 	"go.uber.org/zap"
 
+	inventoryapp "github.com/vevila2020/order-sys/internal/inventory/app"
+	inventoryhttp "github.com/vevila2020/order-sys/internal/inventory/http"
+	inventoryinfra "github.com/vevila2020/order-sys/internal/inventory/infra"
 	"github.com/vevila2020/order-sys/internal/platform/authx"
 	"github.com/vevila2020/order-sys/internal/platform/configx"
 	"github.com/vevila2020/order-sys/internal/platform/db"
@@ -98,6 +101,16 @@ func run() int {
 		Func:     db.Pinger(gdb, time.Second),
 	})
 
+	// 业务模块的依赖在此显式组装（需求 §3.3：禁止包级全局变量）。
+	// 顺序：仓储（无状态）→ 用例服务（持有事务管理器）→ handler（只持有服务）。
+	// 事务管理器是唯一入口，任何模块都不直接持有连接池做写操作。
+	txManager := db.NewTransactionManager(gdb)
+	inventorySvc := inventoryapp.NewService(txManager,
+		inventoryinfra.NewSKURepository(),
+		inventoryinfra.NewInventoryRepository(),
+	)
+	inventoryHandler := inventoryhttp.NewHandler(inventorySvc)
+
 	engine := httpserver.NewEngine(httpserver.ServerDeps{
 		Config: httpserver.ServerConfig{
 			MaxBodyBytes:     cfg.HTTP.MaxBodyBytes,
@@ -110,6 +123,10 @@ func run() int {
 		Tokens:    tokens,
 		Limiter:   ratelimit.Noop{},
 		LocalAuth: localAuthAllowed(cfg),
+		// 业务路由由 main 挂载，platform/httpserver 不认识任何业务模块。
+		RegisterRoutes: func(g httpserver.RouteGroups) {
+			inventoryhttp.Register(g.Operator, inventoryHandler)
+		},
 	})
 
 	server := httpserver.NewHTTPServer(cfg.HTTP.Addr, engine, cfg.HTTP.ReadTimeout, cfg.HTTP.WriteTimeout)
