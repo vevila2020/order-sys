@@ -45,6 +45,7 @@ ADR 记录不可逆或影响面较大的工程决策。被替代的 ADR 不删�
 | --- | --- | --- |
 | [0001](0001-freeze-technology-stack.md) | 技术栈全周期冻结 | Accepted |
 | [0002](0002-modular-monolith-boundaries.md) | 模块化单体与模块边界 | Accepted |
-| [0003](0003-transaction-and-locking.md) | 事务与并发控制 | Proposed |
+| [0003](0003-transaction-and-locking.md) | 事务与并发控制 | Accepted |
+| [0006](0006-idempotency-and-response-snapshot.md) | 幂等键与响应快照 | Accepted |
 | [0007](0007-local-jwt-auth.md) | 本地 JWT 认证与角色 | Accepted |
 | [0010](0010-error-model.md) | 错误模型与错误码 | Accepted |

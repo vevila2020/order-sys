@@ -135,6 +135,14 @@
 **退出标准：** ADR-0003 状态为 Accepted 且无待办；ADR-0006 为 Accepted 或明确标注
 "Accepted at M1-T08 完成时"（不晚于 T08）。
 
+**完成记录（2026-10-21）：** ADR-0003 已转 Accepted，待办项全部落实；ADR-0006 直接
+以 Accepted 状态建立，并在文首声明"实现不得静默偏离文档"。两处需要下游任务遵守的
+新增约束：
+
+- `Do` 的整次尝试共享调用方 `ctx` 预算，`fn` 必须可重入（重试会重复执行）。
+- 幂等键 `INSERT` 上的 1205/ctx 超时映射为 `IDEMPOTENCY_IN_PROGRESS`，**不**走
+  整事务死锁重试；该例外只允许出现在 `platform/idempotency`。
+
 **需求映射：** §7.3、§7.4、FR-003、FR-008。
 
 **建议提交：** `docs(adr): accept transaction strategy and draft idempotency`

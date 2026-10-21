@@ -30,6 +30,12 @@
 
 ### Added
 
+- `ADR-0003 事务与并发控制` 由 Proposed 转为 **Accepted**：固定 `TransactionManager.Do`
+  签名、条件更新与 `RowsAffected` 语义、按 `sku_id` 字典序加锁、1213/1205 重试
+  （3 次，10/20/40ms + ±20% 抖动）、耗尽映射为 `DEPENDENCY_UNAVAILABLE`。
+- 新增 `ADR-0006 幂等键与响应快照`（Accepted）：固定 `(scope, user_id, key)` 键格式、
+  规范化 JSON 的 SHA-256 指纹、单事务内的 `IN_PROGRESS → COMPLETED` 生命周期，以及
+  并发同键由唯一索引排队产生的三条映射。
 - Dockerfile 新增 `GOPROXY` 构建参数（默认官方代理），Compose 与 Makefile 透传同名变量，
   便于在官方代理不可达的环境中构建镜像。
 
