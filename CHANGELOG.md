@@ -34,6 +34,15 @@
 
 ### Added
 
+- M1-T10 order 仓储与 Outbox 写入（`internal/order/infra/repository.go`、
+  `internal/platform/outbox/`）：订单与明细同事务写入；状态迁移用
+  `WHERE status = ?` 条件更新，0 行返回 `ErrOrderStateConflict`；提供
+  `GetByIDForUpdate` 供"读状态→判断→写"的用例使用；列表用
+  `(created_at, order_id)` 游标分页，避免 offset 在并发写入下漏单。
+  Outbox 信封按需求 §9.6 校验（event_id、命名、UTC 时间、合法 JSON），
+  payload 内嵌 `schema_version` 与 `trace_id`，M1 只写 `PENDING`。
+  集成测试覆盖：明细失败时订单头回滚、事务回滚后无幽灵事件、
+  重复 event_id 被拒、条件迁移不覆盖终态、游标翻页不重不漏。
 - M1-T09 inventory 仓储与条件更新（`internal/inventory/app/ports.go`、
   `infra/{inventory_repo,reservation_repo}.go`）：预占、确认、释放全部使用单条
   条件更新并校验 `RowsAffected`，0 行翻译成领域错误而不是静默成功；释放的
