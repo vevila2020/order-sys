@@ -121,6 +121,7 @@ SHOW GRANTS FOR 'dev'@'127.0.0.1';
 | `make fmt` / `make fmt-check` | 格式化 / 检查格式 |
 | `make vet` / `make lint` | 静态检查 |
 | `make test` / `make test-race` | 单元测试（race 需要 CGO 与 C 编译器） |
+| `make test-integration` | 集成测试，`-tags=integration`，需要 Docker |
 | `make build` | 构建到 `backend/bin/` |
 | `make run-api` / `make run-worker` | 本地直接运行（需先 `make up` 提供依赖） |
 | `make logs` | 跟踪 api/worker 日志 |
@@ -168,6 +169,36 @@ docker compose logs api | jq 'select(.level=="error")'
 | 隧道启动即退出，报 `Permission denied (publickey)` | 私钥有 passphrase 但未加载到 ssh-agent；执行 `ssh-add <私钥>` |
 | 隧道正常但 Go 报 `connection refused` | DSN 写了 `localhost` 而非 `127.0.0.1`，或隧道端口与 DSN 不一致 |
 | `dev` 用户 `SHOW DATABASES` 看不到库 | 该用户不存在或未对 `127.0.0.1` 来源授权，见上文授权 SQL |
+| `go: updates to go.mod needed` | 新增了未被 import 的依赖；见下节"依赖与 tools.go" |
+
+## 依赖与 tools.go
+
+`backend/tools.go` 带 `//go:build tools` 标签，只为把已决策、尚未被生产代码 import
+的依赖（GORM、golang-migrate、testcontainers）钉在 `go.mod` 里。
+
+- 它不参与构建：`go build`、`go vet`、`golangci-lint` 都看不到它。
+- 但 `go mod tidy` 会把它算进依赖图，因此不会把这些库当"未使用"删掉。
+- 直接 `go build ./...` 后再 `go mod tidy` 不会产生 diff。
+
+**维护：** T04 / T03 / T17 分别落地 GORM、migrate、testcontainers 的真实 import 后，
+删掉 `tools.go` 里对应的行；文件清空即可删除。若发现某条依赖始终没有被真实 import，
+说明对应任务没做完，不要在 `tools.go` 里长期留着它。
+
+## 集成测试
+
+集成测试用 build tag 隔离：
+
+```powershell
+# 只跑单元测试（不需要 Docker）
+cd backend; go test ./... -count=1
+
+# 跑集成测试（需要 Docker）
+make test-integration
+```
+
+**不要用远程开发库跑集成测试。** 集成测试会执行迁移、建表、写数据；用
+`127.0.0.1:13306` 那条隧道去跑会污染服务器的 `order_sys` 库。集成测试应使用
+testcontainers 启动的临时 MySQL 容器（M1-T17 落地）。
 
 ## 安全注意
 

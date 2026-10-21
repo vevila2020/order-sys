@@ -6,6 +6,10 @@
 
 ### Changed
 
+- Go 版本基线由 1.26.9 升至 **1.26.10**（`go.mod`、Dockerfile 同步）。原因：
+  `crypto/x509` 的 `GO-2026-6809`（不信任受损的中间证书）在 1.26.10 修复，
+  govulncheck 判定为**可达**漏洞（路径经 `httpx.RunServer` → `x509.Certificate.Verify`）。
+  M0 时该补丁版本尚不存在于镜像仓库，因此当时停在 1.26.9；现已可用。
 - Go 版本基线由 1.25.x 升至 1.26.9（`go.mod`、Dockerfile、README、ADR-0001、需求 §9.1 同步）。
   原因：`net/http`、`crypto/tls`、`crypto/x509` 等标准库漏洞的修复版本为 Go 1.26.9+，
   而 `golang.org/x/net@v0.60.0`（修复 4 个漏洞）要求 go ≥ 1.26。
@@ -30,6 +34,17 @@
 
 ### Added
 
+- M1 业务模块骨架：`internal/{order,inventory,payment}/{domain,app,infra,http}` 与
+  `internal/platform/db`，每个包带 package doc 说明职责与允许的导入方向。
+- `internal/archtest`：把 ADR-0002 的分层规则写成测试，检查所有业务模块的直接
+  import。`domain` 只许标准库；`app` 不得 import 本模块 `infra`/`http`、其他模块的
+  `infra`/`http`，也不得直接依赖 gin/gorm/viper/kafka-go/redis/asynq；`platform`
+  不得依赖任何业务模块。三条规则都用临时违规文件验证过确实会失败。
+- M1 依赖锁定：`gorm.io/gorm v1.31.2`、`gorm.io/driver/mysql v1.6.0`、
+  `golang-migrate/migrate/v4 v4.20.1`、`testcontainers-go v0.44.0`（含 mysql 模块）。
+  通过带 `//go:build tools` 标签的 `backend/tools.go` 固定，避免 `go mod tidy`
+  把它们当未使用依赖删除。
+- `make test-integration`：以 `-tags=integration` 运行集成测试，与默认单元测试隔离。
 - `ADR-0003 事务与并发控制` 由 Proposed 转为 **Accepted**：固定 `TransactionManager.Do`
   签名、条件更新与 `RowsAffected` 语义、按 `sku_id` 字典序加锁、1213/1205 重试
   （3 次，10/20/40ms + ±20% 抖动）、耗尽映射为 `DEPENDENCY_UNAVAILABLE`。

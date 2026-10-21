@@ -38,7 +38,8 @@
   指标、优雅关闭、Compose、非 root 镜像、Makefile、CI 四个 job 全绿。
 - 现有代码只到 `internal/platform/` 与 `internal/version/`，**没有任何业务模块**。
 - `backend/migrations/` 仅有 `.gitkeep`；数据库尚未建表。
-- `go.mod` 为 `go 1.26.9`，依赖仅 Gin、Viper、zap、JWT、Prometheus、uuid。
+- `go.mod` 为 `go 1.26.10`（M1-T02 由 1.26.9 升补丁版本，见该任务完成记录），
+  依赖仅 Gin、Viper、zap、JWT、Prometheus、uuid。
 - 测试分层（需求 §10.1）：单元测试不依赖 Docker；集成测试用 build tag 隔离。
 
 ## 3. M1 范围与退出标准
@@ -181,6 +182,20 @@ go test ./... -count=1
 ```
 
 **退出标准：** 目录存在、依赖已锁定、架构测试通过、无未使用依赖。
+
+**完成记录（2026-10-21）：**
+
+- 架构测试实现在 `internal/archtest`（独立包，不占业务模块目录）。只检查直接
+  import，不做传递闭包——传递依赖会随上游库变动而误报。三条规则均已用临时违规
+  文件验证会真实失败，不是空转。
+- **"依赖已锁定"与"无未使用依赖"在 Go 里互相冲突**：T02 没有任何代码 import
+  GORM，`go mod tidy` 会直接删掉。用标准做法 `//go:build tools` 标记的
+  `backend/tools.go` 解决：它不参与构建，但 tidy 会把它算进依赖图。T04/T03/T17
+  落地真实 import 后逐步清空并删除该文件。
+- 顺带修复：`go.mod` 由 1.26.9 升至 **1.26.10**。govulncheck 报告
+  `GO-2026-6809`（crypto/x509 不可信中间证书）为可达漏洞，1.26.10 修复，
+  该镜像标签此时已可用。Dockerfile 的 `FROM golang:...` 同步更新。
+- 新增 `make test-integration`，与默认 `go test ./...` 用 build tag 隔离。
 
 **需求映射：** §9.1、§9.2、ADR-0001、ADR-0002。
 

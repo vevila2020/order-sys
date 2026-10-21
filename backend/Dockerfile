@@ -4,9 +4,11 @@
 # 运行阶段使用固定版本 alpine，保留 wget 供 Compose 健康检查，并以非 root 运行。
 
 # ---------- build ----------
-# 固定到具体补丁版本：golang:1.26-alpine 当前解析到 1.26.9，但标签本身会漂移。
+# 固定到具体补丁版本：golang:1.26-alpine 这类浮动标签会随时间漂移。
 # 这里必须 >= go.mod 的 go 指令，否则镜像内 go mod download 会直接失败。
-FROM golang:1.26.9-alpine AS build
+# 1.26.10 修复了 crypto/x509 的 GO-2026-6809（不可信中间证书），govulncheck 可达；
+# 升级 go.mod 时同步改这里，否则镜像里编译出的二进制仍带漏洞。
+FROM golang:1.26.10-alpine AS build
 
 # git 用于 go mod 下载私有仓库；ca-certificates 供构建期访问 HTTPS。
 RUN apk add --no-cache git ca-certificates

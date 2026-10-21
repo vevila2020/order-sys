@@ -15,7 +15,7 @@ LDFLAGS := -X github.com/vevila2020/order-sys/internal/version.Version=$(VERSION
            -X github.com/vevila2020/order-sys/internal/version.Commit=$(COMMIT) \
            -X github.com/vevila2020/order-sys/internal/version.BuildDate=$(BUILD_DATE)
 
-.PHONY: help setup up down logs ps fmt fmt-check vet lint test test-race build run-api run-worker security sbom ci clean
+.PHONY: help setup up down logs ps fmt fmt-check vet lint test test-integration test-race build run-api run-worker security sbom ci clean
 
 help: ## 列出所有目标
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -66,8 +66,13 @@ lint: ## golangci-lint（未安装时提示）
 		echo "golangci-lint not installed; see docs/runbooks/local-dev.md"; exit 1; \
 	fi
 
-test: ## 单元测试
+test: ## 单元测试（不依赖 Docker）
 	$(GO) test ./... -count=1
+
+test-integration: ## 集成测试（build tag integration，需要 Docker）
+	# integration 标签把依赖真实 MySQL 的用例与单元测试隔离：默认 go test 不编译
+	# 它们，因此没有 Docker 的开发机也能跑完整的单元测试。
+	cd $(BACKEND) && go test -tags=integration -count=1 ./...
 
 test-race: ## 单元测试（竞态检测，需要 CGO）
 	cd $(BACKEND) && CGO_ENABLED=1 go test -race -count=1 ./...
