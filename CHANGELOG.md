@@ -54,6 +54,12 @@
   up→down→up、字符集、守恒 CHECK、唯一键、Outbox 索引列序、列类型。
 - [数据库迁移手册](docs/runbooks/migrate.md)：执行方式、`dirty` 处置、禁止事项、
   新增迁移检查清单。
+- `internal/platform/db`：连接池 + 启动自检 + `TransactionManager`。
+  `Do` 对死锁（1213）与锁等待超时（1205）重试整个事务，3 次、10/20/40ms、
+  ±20% 抖动；耗尽映射为 `DEPENDENCY_UNAVAILABLE` + `Retry-After`。
+  `retryVetoer` 接口允许包装错误否决重试（供幂等键等待使用，ADR-0006）。
+- `api` 启动时连接 MySQL 并做自检，失败退出非 0；`/health/ready` 新增 `mysql` 关键检查。
+- `mysql.dsn` 改为启动期必填校验；错误只报"缺失"，不回显值。
 - `ADR-0003 事务与并发控制` 由 Proposed 转为 **Accepted**：固定 `TransactionManager.Do`
   签名、条件更新与 `RowsAffected` 语义、按 `sku_id` 字典序加锁、1213/1205 重试
   （3 次，10/20/40ms + ±20% 抖动）、耗尽映射为 `DEPENDENCY_UNAVAILABLE`。

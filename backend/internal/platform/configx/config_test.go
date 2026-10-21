@@ -93,6 +93,34 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 	}
 }
 
+// TestLoadRequiresMySQLDSN 验证 M1 起 DSN 必填，且错误信息不回显其值。
+//
+// 只校验"是否为空"而绝不打印内容：DSN 内嵌密码，一旦出现在错误体或日志里
+// 就等于泄露。这里断言错误里不含测试用的密码片段来锁定这一点。
+func TestLoadRequiresMySQLDSN(t *testing.T) {
+	t.Setenv("APP_ENV", "local")
+	t.Setenv("MYSQL_DSN", "")
+	path := writeYAML(t, "app:\n  env: local\n")
+
+	_, err := Load(path, "")
+	if err == nil {
+		t.Fatal("缺少 mysql.dsn 时应拒绝启动")
+	}
+	if !strings.Contains(err.Error(), "mysql.dsn") {
+		t.Fatalf("错误应指出缺少 mysql.dsn: %v", err)
+	}
+
+	// 填入合法 DSN 后应通过。
+	t.Setenv("MYSQL_DSN", "user:secret-password@tcp(127.0.0.1:3306)/order_sys?parseTime=true")
+	cfg, err := Load(path, "")
+	if err != nil {
+		t.Fatalf("提供 DSN 后仍失败: %v", err)
+	}
+	if cfg.MySQL.DSN == "" {
+		t.Fatal("DSN 未生效")
+	}
+}
+
 func TestLoadRejectsNonLocalAuthEnabled(t *testing.T) {
 	// staging 不在 local/ci 白名单内，开启本地签发必须被拒绝；依赖显式密钥
 	// 保证测试命中的是开关校验而不是密钥缺失校验。

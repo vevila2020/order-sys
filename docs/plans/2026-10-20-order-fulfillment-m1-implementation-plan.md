@@ -298,6 +298,22 @@ go test -tags=integration ./internal/platform/db -count=1
 
 **退出标准：** 回滚、panic、重试、错误映射均有测试；无全局 DB 单例。
 
+**完成记录（2026-10-21）：** 10 个集成测试 + 8 个单元测试通过。
+
+- **死锁测试的构造方式被推翻一次。** 初版只让 A 走 `tm.Do`、B 用裸 `Transaction`，
+  结果 MySQL 把**B**选为牺牲者，A 从未重试，测试误报"死锁没形成"。
+  MySQL 选择牺牲者是"回滚代价小的一方"，与谁发起无关。改为两个事务都走 `tm.Do`，
+  用双向屏障（各自先拿第一把锁，再等对方也拿到）保证环路必然形成；无论谁被杀，
+  幸存者都会重试。连跑 5 次稳定通过。
+- **`retryVetoer` 接口**：ADR-0006 要求幂等键 INSERT 上的 1205 不走整事务重试。
+  `db` 包不能 import 业务包，因此定义接口 A，由 `platform/idempotency` 实现否决。
+- **`AsAppError()` 而不是让 `db` 依赖 `httpx.FromError`**：错误映射集中在一个
+  方法上，`Do` 的返回值保持纯粹的数据库语义，由用例层决定何时转 HTTP 错误。
+- **`TestOpenAgainstConfiguredDSN`** 是可选的真实库连通性检查：读取 `MYSQL_DSN`，
+  未设置则跳过。**只读**（查版本与排序规则），可安全指向开发库。
+  它把"隧道 + 远程库 + 项目自己的驱动"这条链路变成了可重复执行的验证，
+  而不是只有 Navicat 能连。
+
 **需求映射：** §7.3、ADR-0003、FR-008、NFR-004。
 
 **建议提交：** `feat(db): add connection pool and transaction manager`

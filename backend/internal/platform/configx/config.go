@@ -261,6 +261,11 @@ func (c *Config) Validate() error {
 	if c.MySQL.MaxIdleConns < 0 || c.MySQL.MaxIdleConns > c.MySQL.MaxOpenConns {
 		add("mysql.max_idle_conns must be between 0 and mysql.max_open_conns")
 	}
+	// M1 起 MySQL 是权威存储，DSN 成为必填项。这里只报"缺失"，不回显值：
+	// DSN 含密码，任何进入日志或错误体的机会都是泄露面。
+	if strings.TrimSpace(c.MySQL.DSN) == "" {
+		add("mysql.dsn is required (inject via MYSQL_DSN)")
+	}
 	switch c.Log.Level {
 	case "debug", "info", "warn", "error":
 	default:

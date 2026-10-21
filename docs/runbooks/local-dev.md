@@ -166,7 +166,9 @@ docker compose logs api | jq 'select(.level=="error")'
 | 端口被占用 | 修改 Compose 端口映射或 `HTTP_ADDR` |
 | Windows 下 `make` 不存在 | 使用 Git Bash 安装 make，或改用 WSL |
 | `go test -race` 报 cgo 错误 | Windows 默认无 gcc；CI/Linux 执行 race 测试 |
-| 隧道启动即退出，报 `Permission denied (publickey)` | 私钥有 passphrase 但未加载到 ssh-agent；执行 `ssh-add <私钥>` |
+| 隧道启动即退出，报 `Permission denied (publickey)` | 私钥有 passphrase 但未加载到 ssh-agent；执行 `ssh-add <私钥>`。也确认 `ssh-add -l` 能列出密钥 |
+| `ssh-add -l` 报 `Could not open a connection to your authentication agent` | `ssh-agent` 服务未运行：`Set-Service ssh-agent -StartupType Automatic; Start-Service ssh-agent` |
+| `ssh-add -l` 能列出密钥，但隧道仍报 publickey 失败 | PATH 里命中 Git 的 `ssh.exe`，它不认 Windows 的 ssh-agent。脚本已优先使用 `System32\OpenSSH\ssh.exe`；手动验证时也要用该路径，或 `Set-Alias ssh` 指向它 |
 | 隧道正常但 Go 报 `connection refused` | DSN 写了 `localhost` 而非 `127.0.0.1`，或隧道端口与 DSN 不一致 |
 | `dev` 用户 `SHOW DATABASES` 看不到库 | 该用户不存在或未对 `127.0.0.1` 来源授权，见上文授权 SQL |
 | `go: updates to go.mod needed` | 新增了未被 import 的依赖；见下节"依赖与 tools.go" |
@@ -197,8 +199,24 @@ make test-integration
 ```
 
 **不要用远程开发库跑集成测试。** 集成测试会执行迁移、建表、写数据；用
-`127.0.0.1:13306` 那条隧道去跑会污染服务器的 `order_sys` 库。集成测试应使用
-testcontainers 启动的临时 MySQL 容器（M1-T17 落地）。
+`127.0.0.1:13306` 那条隧道去跑会污染服务器的 `order_sys` 库。集成测试使用
+testcontainers 启动的临时 MySQL 容器。
+
+### 唯一的例外：真实库连通性检查
+
+`TestOpenAgainstConfiguredDSN` 读取 `MYSQL_DSN` 验证隧道链路，未设置时自动跳过。
+它**只读**（查版本与库排序规则），不建表、不写数据、不跑迁移，可以安全指向开发库：
+
+```powershell
+# 先启动隧道，然后从 .env 取 DSN 注入环境变量
+.\scripts\ssh-tunnel.ps1 -Action Start -RemoteHost 23.238.26.42 -RemotePort 2233
+cd backend
+$env:MYSQL_DSN = (Get-Content ..\.env | Where-Object { $_ -match '^MYSQL_DSN=' }) -replace '^MYSQL_DSN=', '' -replace '"', ''
+go test -tags=integration ./internal/platform/db -run TestOpenAgainstConfiguredDSN -v
+```
+
+通过时应打印实际连接的 MySQL 版本与 `utf8mb4_unicode_ci`。若报 `1045 Access denied`，
+说明密码与服务器上的 `dev` 账号不一致，而不是隧道或驱动的问题。
 
 ## 安全注意
 

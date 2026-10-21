@@ -15,6 +15,7 @@ import (
 
 	"github.com/vevila2020/order-sys/internal/platform/authx"
 	"github.com/vevila2020/order-sys/internal/platform/configx"
+	"github.com/vevila2020/order-sys/internal/platform/db"
 	"github.com/vevila2020/order-sys/internal/platform/healthx"
 	"github.com/vevila2020/order-sys/internal/platform/httpserver"
 	"github.com/vevila2020/order-sys/internal/platform/httpx"
@@ -62,7 +63,24 @@ func run() int {
 		return httpx.ExitFailure
 	}
 
-	// M0 的 ready 只做配置自检；MySQL/Redis/Kafka 检查在 M1/M3 注册。
+	// MySQL 是权威存储，启动期就必须可用：连不上直接退出，比"先启动、请求时才报错"
+	// 更容易发现问题。错误里不含 DSN，具体原因只进日志。
+	// 连接不可用的进程不应对外提供服务，也不应通过 readiness（ADR-0003）。
+	gdb, err := db.Open(context.Background(), cfg.MySQL)
+	if err != nil {
+		log.Error("init database", zap.Error(err))
+		return httpx.ExitFailure
+	}
+	log.Info("database connected")
+
+	// 关闭顺序反过来：RunServer 返回时（收到 SIGTERM 并完成优雅关闭、在途请求
+	// 结束）才执行这里，此时再关连接池不会让在途请求拿到已关闭的连接。
+	defer func() {
+		if err := db.Close(gdb); err != nil {
+			log.Error("close database", zap.Error(err))
+		}
+	}()
+
 	registry := healthx.NewRegistry(time.Second)
 	registry.Register(healthx.Check{
 		Name:     "config",
@@ -71,6 +89,13 @@ func run() int {
 			// 配置在启动时已校验，这里只确认进程上下文仍有效。
 			return ctx.Err()
 		},
+	})
+	// ready 反映真实依赖：数据库不可用时返回 503，由编排层摘掉流量，
+	// 而不是让请求打到必然失败的实例上。
+	registry.Register(healthx.Check{
+		Name:     "mysql",
+		Critical: true,
+		Func:     db.Pinger(gdb, time.Second),
 	})
 
 	engine := httpserver.NewEngine(httpserver.ServerDeps{
