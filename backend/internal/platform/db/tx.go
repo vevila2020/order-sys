@@ -45,6 +45,26 @@ func retryPolicyOrDefault(p RetryPolicy) RetryPolicy {
 //   - 死锁与锁等待超时会重试整个事务，因此 **fn 必须可重入**：不得在闭包外累积
 //     状态，不得产生数据库之外的副作用（发消息、写文件、加内存锁）。
 //   - 重试耗尽返回 *RetryExhaustedError，由 HTTP 层映射为 DEPENDENCY_UNAVAILABLE。
+//
+// # 已知的抽象泄漏：签名里出现 *gorm.DB
+//
+// 按分层规则，app 层不得 import gorm（internal/archtest 会拦下直接 import），
+// 但这里的 fn 签名把 *gorm.DB 交到了 app 手里 —— 这是一次**有意的、被记录在案的**
+// 泄漏，不是疏漏。取舍：
+//
+//   - 选它：仓储端口需要执行带条件的原生 SQL、读取 RowsAffected 并区分驱动错误码
+//     （ADR-0003 第 2、5 节）。再包一层自定义 Tx（Exec/Query/RowsAffected）会把
+//     gorm 的能力抄一遍，适配层与用例层各写一半，反而更容易出错。
+//   - 代价：app 拿到的是完整的 ORM 对象，可以用 tx.Model(...).Where(...) 绕过仓储；
+//     archtest 只检查直接 import，**拦不住这种用法**。
+//
+// 因此约束靠评审与代码习惯维持，边界是这样划的：**app 只允许把 tx 原样透传给
+// 端口方法，不得对 tx 调用任何方法**。触发重新评估的条件（任一出现即应重新设计，
+// 而不是继续加注释）：
+//
+//   - app 层出现 tx.Exec / tx.Raw / tx.Model / tx.Where 等任何调用；
+//   - 出现第二个数据库（例如只读副本、分析库），需要按用途区分事务句柄；
+//   - 引入非 gorm 的存储实现（换库或增加一个非 SQL 仓储），签名无法同时满足。
 type TransactionManager interface {
 	// Do 在事务内执行 fn；fn 返回错误或 panic 时整体回滚。
 	Do(ctx context.Context, fn func(ctx context.Context, tx *gorm.DB) error) error

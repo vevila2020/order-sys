@@ -40,6 +40,12 @@ type TransactionManager interface {
   `Do` 自己不发明新的超时。
 - context 到期时驱动会中断查询并关闭该连接，MySQL 侧事务随之回滚；该连接被
   连接池丢弃重建。因此超时不会留下悬挂事务，但会占用一次连接重建成本。
+- **签名中的 `*gorm.DB` 是已知的抽象泄漏**：app 层不 import gorm（由
+  `internal/archtest` 检查），但通过事务句柄仍能拿到完整 ORM 对象。保留该签名
+  是因为仓储端口需要执行条件更新、读取 `RowsAffected` 并区分驱动错误码；再包一层
+  自定义 `Tx` 会把 gorm 的能力抄一遍。代价是"app 不得对 tx 调用 ORM 方法"这条
+  纪律只能靠评审维持。重新评估的触发条件写在 `platform/db.TransactionManager`
+  的文档注释中（app 出现 `tx.Exec` 等方法、引入第二个数据库、或增加非 gorm 实现）。
 
 ### 2. 写入方式：条件更新优先，行锁兜底
 

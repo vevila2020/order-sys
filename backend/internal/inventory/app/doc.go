@@ -6,4 +6,6 @@
 // 传入，M1 只有普通订单，因此恒为 available。
 //
 // 事务由调用方（order 的 app 层）提供，本包不自行开启事务，避免嵌套事务。
+// 端口方法接收调用方传入的事务句柄并原样转给本模块 infra；该句柄是 *gorm.DB，
+// 因此同样受"不得对 tx 调用 ORM 方法"的约束（见 platform/db.TransactionManager）。
 package app

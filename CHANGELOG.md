@@ -34,6 +34,12 @@
 
 ### Added
 
+- `internal/platform/db.TransactionManager` 的文档注释补齐"`*gorm.DB` 抽象泄漏"的
+  取舍说明与重新评估的触发条件；`order/app`、`inventory/app`、`payment/app` 与
+  `internal/archtest` 同步记录该盲区（archtest 只检查直接 import，管不到签名泄漏）。
+  ADR-0003 第 1 节同步登记。
+- 各模块 `http` 包统一约定 `net/http` 的导入别名为 `stdhttp`，避免与包名 `http`
+  同名歧义；目录名沿用需求 §9.1，不改名为 transport/delivery。
 - M1 业务模块骨架：`internal/{order,inventory,payment}/{domain,app,infra,http}` 与
   `internal/platform/db`，每个包带 package doc 说明职责与允许的导入方向。
 - `internal/archtest`：把 ADR-0002 的分层规则写成测试，检查所有业务模块的直接
