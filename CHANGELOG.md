@@ -34,6 +34,13 @@
 
 ### Added
 
+- M1-T08 幂等记录与请求指纹（`internal/platform/idempotency`）：`Fingerprint`
+  按 ADR-0006 规范化 JSON（键排序、数组保序、`UseNumber` 保精度）；`Key` 校验
+  长度 8–128 与字符集；`Store.Begin/Complete` 在调用方事务内读写
+  `idempotency_records`，并发同键由唯一索引排队，等待超时映射为
+  `ErrInProgress` 并**否决**事务级重试（实现 `db.retryVetoer`）。
+- `db.IsDuplicateKey` / `db.IsLockWaitTimeout`：把 MySQL 1062、1205 的判定
+  收敛到 platform/db，供仓储与幂等层复用，避免各处重复解析驱动错误码。
 - `internal/platform/db.TransactionManager` 的文档注释补齐"`*gorm.DB` 抽象泄漏"的
   取舍说明与重新评估的触发条件；`order/app`、`inventory/app`、`payment/app` 与
   `internal/archtest` 同步记录该盲区（archtest 只检查直接 import，管不到签名泄漏）。

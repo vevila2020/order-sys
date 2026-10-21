@@ -12,11 +12,35 @@ import (
 
 // MySQL 错误码（协议字段，不随驱动版本或错误文案变化）。
 const (
+	// errDuplicateEntry 是 ER_DUP_ENTRY：唯一约束冲突。
+	//
+	// 它是业务结论而不是故障：幂等键已存在、每单只允许一个支付单、订单号重复。
+	// 调用方应当读取既有记录并作出业务判断，绝不能当成"重试一下就好"。
+	errDuplicateEntry uint16 = 1062
 	// errLockDeadlock 是 ER_LOCK_DEADLOCK：InnoDB 检测到死锁后主动回滚事务。
 	errLockDeadlock uint16 = 1213
 	// errLockWaitTimeout 是 ER_LOCK_WAIT_TIMEOUT：等锁超过 innodb_lock_wait_timeout。
 	errLockWaitTimeout uint16 = 1205
 )
+
+// IsDuplicateKey 判断错误是否为唯一约束冲突（1062）。
+//
+// 仓储层与幂等记录都依赖这个判定区分"并发结果"与"真故障"：命中唯一索引说明
+// 前提已由另一个事务成立，属于可解释的业务结果，不是需要上报的错误。
+func IsDuplicateKey(err error) bool {
+	code, ok := mysqlErrorCode(err)
+	return ok && code == errDuplicateEntry
+}
+
+// IsLockWaitTimeout 判断错误是否为锁等待超时（1205）。
+//
+// 单独暴露是因为 ADR-0006 第 4 节要为"幂等键 INSERT 等锁超时"定义一个例外：
+// 它表示另一个请求正在处理同一个键，不应走事务级重试，而应返回
+// IDEMPOTENCY_IN_PROGRESS。区分 1205 与 1213 是这条例外的判据。
+func IsLockWaitTimeout(err error) bool {
+	code, ok := mysqlErrorCode(err)
+	return ok && code == errLockWaitTimeout
+}
 
 // IsRetryable 判断错误是否属于"整个事务可以安全重试"的瞬时争用。
 //
