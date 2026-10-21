@@ -100,6 +100,23 @@ function Test-LocalPortOpen {
     }
 }
 
+function Resolve-SshPath {
+    # 优先使用 Windows 自带的 OpenSSH（System32\OpenSSH\ssh.exe）。
+    #
+    # 原因：Git for Windows 自带一份 ssh.exe，且通常排在 PATH 前面。这份 ssh
+    # 连接的是 cygwin 风格的 agent，而 Windows 的 ssh-agent 服务通过命名管道
+    # 暴露密钥；两者不通用。若 PATH 命中的是 Git 的 ssh，即使 ssh-add -l 能看到
+    # 密钥，ssh 仍会报 "Permission denied (publickey)"。这里显式取系统 OpenSSH，
+    # 并在它不存在时回退到 PATH，同时给出提示。
+    $systemSsh = Join-Path $env:SystemRoot 'System32\OpenSSH\ssh.exe'
+    if (Test-Path -LiteralPath $systemSsh) {
+        return $systemSsh
+    }
+    Write-Host 'warning: System32\OpenSSH\ssh.exe not found, falling back to PATH' -ForegroundColor Yellow
+    Write-Host '  if authentication fails, install "OpenSSH Client" (Settings > Apps > Optional features)' -ForegroundColor Yellow
+    return 'ssh'
+}
+
 function Start-Tunnel {
     $existing = Get-TunnelProcess
     if ($null -ne $existing) {
@@ -132,7 +149,8 @@ function Start-Tunnel {
         $sshArgs = @('-i', $KeyFile) + $sshArgs
     }
 
-    $proc = Start-Process -FilePath 'ssh' -ArgumentList $sshArgs -PassThru -NoNewWindow
+    $sshPath = Resolve-SshPath
+    $proc = Start-Process -FilePath $sshPath -ArgumentList $sshArgs -PassThru -NoNewWindow
     New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
     Set-Content -LiteralPath $StateFile -Value $proc.Id -NoNewline
 
