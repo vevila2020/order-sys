@@ -45,6 +45,15 @@
   通过带 `//go:build tools` 标签的 `backend/tools.go` 固定，避免 `go mod tidy`
   把它们当未使用依赖删除。
 - `make test-integration`：以 `-tags=integration` 运行集成测试，与默认单元测试隔离。
+- M1 初始 schema（`backend/migrations/000001_init.{up,down}.sql`）：`skus`、
+  `inventories`（含守恒 CHECK）、`orders`、`order_items`、`reservations`、
+  `reservation_items`、`payments`、`idempotency_records`、`outbox_events`。
+  统一 `utf8mb4_unicode_ci`、`DATETIME(6)`、金额 `BIGINT UNSIGNED`；跨模块只存 ID 不建外键。
+- `internal/platform/testdb`（integration tag）：testcontainers 启动 `mysql:8.4.3`，
+  每个测试独立 schema，提供迁移 up/down/version 与表清单查询。6 个迁移测试覆盖
+  up→down→up、字符集、守恒 CHECK、唯一键、Outbox 索引列序、列类型。
+- [数据库迁移手册](docs/runbooks/migrate.md)：执行方式、`dirty` 处置、禁止事项、
+  新增迁移检查清单。
 - `ADR-0003 事务与并发控制` 由 Proposed 转为 **Accepted**：固定 `TransactionManager.Do`
   签名、条件更新与 `RowsAffected` 语义、按 `sku_id` 字典序加锁、1213/1205 重试
   （3 次，10/20/40ms + ±20% 抖动）、耗尽映射为 `DEPENDENCY_UNAVAILABLE`。

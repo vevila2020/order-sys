@@ -239,6 +239,23 @@ go test -tags=integration ./internal/platform/db -run TestMigrations -count=1
 **退出标准：** 空库 up/down/up 成功；`SHOW TABLES` 与设计一致；
 迁移失败时 `migrate` 版本不前进（`dirty` 标记有处置说明）。
 
+**完成记录（2026-10-21）：** 9 张表、6 个集成测试通过（11.5s）。
+
+- **`idem_key` 而非 `key`**：`key` 是 MySQL 保留字，直接用会导致每次写 SQL 都要
+  反引号，容易漏。列名改为 `idem_key`，唯一索引仍按需求命名为 `uk_idempotency`。
+  需求 §4.5 的物理列名以迁移文件为准（文档已说明"物理类型以迁移文件为准"）。
+- **不设 `DEFAULT` / `ON UPDATE` 时间戳**：由应用在同一事务内显式写同一个 now，
+  保证一次事务的多行时间一致；`ON UPDATE` 还会让 DBA 手工修数时静默改写时间。
+- **状态列用 VARCHAR 不用 ENUM**：ENUM 增删取值要 `ALTER TABLE` 锁表，且让迁移
+  与代码强耦合。
+- **两条真实缺陷在实现中被测试抓出**：
+  1. `migrate.WithInstance` 会接管传入的 `*sql.DB`，`Close` 时把它关掉，
+     导致第一次迁移后测试连接失效（`sql: database is closed`）。改为迁移独占连接。
+  2. harness 初版每个测试起一个容器，6 个测试耗时 65s。改为共享容器 + 每测试独立
+     schema（CREATE/DROP DATABASE），降到 11.5s，隔离性不变。
+- **验证了测试本身有效**：故意把 down 中的 `skus` 移到 `inventories` 之前，
+  测试如期失败并报 3730（外键引用），随后恢复。
+
 **需求映射：** FR-001、FR-017、NFR-010、AC-015。
 
 **建议提交：** `feat(db): add m1 schema migrations`

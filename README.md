@@ -104,6 +104,7 @@ docs/                   # 需求、计划、ADR、运行手册、API
 - [M0 实施计划](docs/plans/2026-10-19-order-fulfillment-m0-implementation-plan.md)
 - [ADR 索引](docs/adr/README.md)
 - [本地开发手册](docs/runbooks/local-dev.md)
+- [数据库迁移手册](docs/runbooks/migrate.md)
 - [CI 手册](docs/runbooks/ci.md)
 - [API 说明](docs/api/README.md)
 
