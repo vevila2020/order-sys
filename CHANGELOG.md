@@ -34,6 +34,18 @@
 
 ### Added
 
+- M1-T13 下单用例（`internal/order/app/place_order.go`）：一次事务内完成
+  幂等占位 → 按 `sku_id` 排序读价格 → 预占 → 写预占/订单/支付单 →
+  写 `order.created` 与 `inventory.reserved` → 完成幂等快照。订单号、预占号、
+  支付单号与下单时间都在事务外生成一次，重试复用同一组值，避免重试后
+  快照与实际落库的行对不上。
+- 跨模块适配器 `order/infra/adapters.go`：把 inventory/payment 的应用服务接到
+  order 的端口，并在此处把 `inventory.domain.ErrInsufficientStock` 翻译为
+  `order.app.ErrInsufficientStock`——order 不 import 其他模块的 domain。
+- `order.domain.Order` 增加 `createdAt`（由用例层传入，统一 UTC），响应契约
+  需要返回 `created_at`。
+- 集成测试覆盖 T13 的六类验收场景：成功、同键重放、同键异体、并发同键、
+  库存不足全链路回滚、多 SKU 部分不足整单回滚；另有停用 SKU 与价格快照。
 - M1-T12 SKU 用例与 HTTP（`internal/inventory/{app/sku.go,http/**}`）：创建时 SKU
   与 `inventories` 同事务，负初始库存返回 `VALIDATION_FAILED`；查询不存在返回
   404；更新用 `version` 做乐观锁，不匹配返回 409 且不覆盖已有值；改价不触碰

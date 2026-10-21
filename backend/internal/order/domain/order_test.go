@@ -3,6 +3,7 @@ package domain_test
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/vevila2020/order-sys/internal/order/domain"
 )
@@ -18,12 +19,16 @@ func newOrder(t *testing.T) *domain.Order {
 
 	o, err := domain.NewOrder("order-1", "user-1", []domain.OrderItem{
 		mustItem(t, "sku-1", 2, 100),
-	})
+	}, testCreatedAt)
 	if err != nil {
 		t.Fatalf("构造订单失败: %v", err)
 	}
 	return o
 }
+
+// testCreatedAt 是固定的下单时间。用常量而不是 time.Now()：断言里要比较
+// created_at，随机时间会让"是否被改写"这类问题变得不可复现。
+var testCreatedAt = time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
 
 func mustItem(t *testing.T, skuID string, qty, unitPrice int64) domain.OrderItem {
 	t.Helper()
@@ -268,7 +273,7 @@ func TestNewOrderValidates(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			_, err := domain.NewOrder(c.orderID, c.userID, c.items)
+			_, err := domain.NewOrder(c.orderID, c.userID, c.items, testCreatedAt)
 			if !errors.Is(err, c.wantErr) {
 				t.Fatalf("got %v, want %v", err, c.wantErr)
 			}
@@ -279,7 +284,7 @@ func TestNewOrderValidates(t *testing.T) {
 // TestOrderItemsAreCopied 验证构造时复制明细，防止调用方后续修改影响订单。
 func TestOrderItemsAreCopied(t *testing.T) {
 	items := []domain.OrderItem{mustItem(t, "sku-1", 1, 100)}
-	o, err := domain.NewOrder("order-1", "user-1", items)
+	o, err := domain.NewOrder("order-1", "user-1", items, testCreatedAt)
 	if err != nil {
 		t.Fatal(err)
 	}

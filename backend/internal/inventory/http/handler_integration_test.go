@@ -44,6 +44,7 @@ func newRouter(t *testing.T, tdb *testdb.DB) (*gin.Engine, *gorm.DB) {
 		db.NewTransactionManager(gdb),
 		inventoryinfra.NewSKURepository(),
 		inventoryinfra.NewInventoryRepository(),
+		inventoryinfra.NewReservationRepository(),
 	)
 
 	gin.SetMode(gin.TestMode)

@@ -1,5 +1,7 @@
 package domain
 
+import "time"
+
 // OrderStatus 是普通订单的状态。
 //
 // 常量值与迁移文件里的 VARCHAR 取值、需求 §4.3 的状态机一一对应。
@@ -57,6 +59,11 @@ type Order struct {
 	currency    string
 	closeReason string
 	version     int64
+	// createdAt 是下单时间，统一 UTC。
+	//
+	// 由调用方传入而不是在领域层取 time.Now：仓储的重试会把构造函数执行多次，
+	// 领域层取时间会让每次尝试得到不同的值，重试后落库的时间就不是第一次的。
+	createdAt time.Time
 }
 
 // currencyCNY 是一期唯一支持的币种（需求 §4.5）。
@@ -67,7 +74,7 @@ const currencyCNY = "CNY"
 // 重复 SKU 一律拒绝而不是合并：合并需要在领域层决定"哪一行的单价胜出"，
 // 而这个决定应当由调用方（下单用例读到的是同一 SKU 的同一价格）做出。
 // 拒绝让问题在构造时暴露，而不是变成两行不同单价被静默合并。
-func NewOrder(orderID, userID string, items []OrderItem) (*Order, error) {
+func NewOrder(orderID, userID string, items []OrderItem, createdAt time.Time) (*Order, error) {
 	if orderID == "" {
 		return nil, ErrInvalidOrderID
 	}
@@ -76,6 +83,9 @@ func NewOrder(orderID, userID string, items []OrderItem) (*Order, error) {
 	}
 	if len(items) == 0 {
 		return nil, ErrEmptyOrder
+	}
+	if createdAt.IsZero() {
+		return nil, ErrInvalidCreatedAt
 	}
 
 	// 复制明细：调用方常复用同一个切片，不复制会让之后对它的修改
@@ -106,6 +116,7 @@ func NewOrder(orderID, userID string, items []OrderItem) (*Order, error) {
 		totalCents: total,
 		currency:   currencyCNY,
 		version:    0,
+		createdAt:  createdAt.UTC(),
 	}, nil
 }
 
@@ -115,7 +126,7 @@ func NewOrder(orderID, userID string, items []OrderItem) (*Order, error) {
 // 呈现——若历史订单的总额与明细不符，那是需要排查的数据问题，重新计算会把它
 // 掩盖掉。但状态必须是已知值，否则所有状态判断都会失效。
 func RehydrateOrder(orderID, userID string, status OrderStatus, items []OrderItem,
-	totalCents int64, currency, closeReason string, version int64) (*Order, error) {
+	totalCents int64, currency, closeReason string, version int64, createdAt time.Time) (*Order, error) {
 	if !status.Valid() {
 		return nil, ErrInvalidStateTransition
 	}
@@ -130,6 +141,7 @@ func RehydrateOrder(orderID, userID string, status OrderStatus, items []OrderIte
 		currency:    currency,
 		closeReason: closeReason,
 		version:     version,
+		createdAt:   createdAt.UTC(),
 	}, nil
 }
 
@@ -153,6 +165,9 @@ func (o *Order) CloseReason() string { return o.closeReason }
 
 // Version 返回版本，供仓储条件更新使用。
 func (o *Order) Version() int64 { return o.version }
+
+// CreatedAt 返回下单时间（UTC）。
+func (o *Order) CreatedAt() time.Time { return o.createdAt }
 
 // Items 返回明细副本，调用方无法原地修改订单内容。
 func (o *Order) Items() []OrderItem {

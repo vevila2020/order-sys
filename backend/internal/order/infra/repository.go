@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/vevila2020/order-sys/internal/order/app"
 	"github.com/vevila2020/order-sys/internal/order/domain"
@@ -78,16 +79,17 @@ func (orderRepo) load(ctx context.Context, tx db.Tx, orderID, suffix string) (*d
 
 	// 列名显式标注：GORM 的字段名推断与迁移里的列名不一致时会静默留下零值。
 	var head struct {
-		OrderID     string  `gorm:"column:order_id"`
-		UserID      string  `gorm:"column:user_id"`
-		Status      string  `gorm:"column:status"`
-		TotalCents  int64   `gorm:"column:total_cents"`
-		Currency    string  `gorm:"column:currency"`
-		CloseReason *string `gorm:"column:close_reason"`
-		Version     int64   `gorm:"column:version"`
+		OrderID     string    `gorm:"column:order_id"`
+		UserID      string    `gorm:"column:user_id"`
+		Status      string    `gorm:"column:status"`
+		TotalCents  int64     `gorm:"column:total_cents"`
+		Currency    string    `gorm:"column:currency"`
+		CloseReason *string   `gorm:"column:close_reason"`
+		Version     int64     `gorm:"column:version"`
+		CreatedAt   time.Time `gorm:"column:created_at"`
 	}
 	err := tx.WithContext(ctx).
-		Raw(`SELECT order_id, user_id, status, total_cents, currency, close_reason, version
+		Raw(`SELECT order_id, user_id, status, total_cents, currency, close_reason, version, created_at
 		       FROM orders WHERE order_id = ?`+suffix, orderID).
 		Scan(&head).Error
 	if err != nil {
@@ -123,7 +125,7 @@ func (orderRepo) load(ctx context.Context, tx db.Tx, orderID, suffix string) (*d
 		closeReason = *head.CloseReason
 	}
 	return domain.RehydrateOrder(head.OrderID, head.UserID, domain.OrderStatus(head.Status),
-		items, head.TotalCents, head.Currency, closeReason, head.Version)
+		items, head.TotalCents, head.Currency, closeReason, head.Version, head.CreatedAt)
 }
 
 // Transition 实现 OrderRepository.Transition。
@@ -189,13 +191,14 @@ func (r orderRepo) ListByUser(ctx context.Context, tx db.Tx, userID string, limi
 	args = append(args, limit)
 
 	var rows []struct {
-		OrderID     string  `gorm:"column:order_id"`
-		UserID      string  `gorm:"column:user_id"`
-		Status      string  `gorm:"column:status"`
-		TotalCents  int64   `gorm:"column:total_cents"`
-		Currency    string  `gorm:"column:currency"`
-		CloseReason *string `gorm:"column:close_reason"`
-		Version     int64   `gorm:"column:version"`
+		OrderID     string    `gorm:"column:order_id"`
+		UserID      string    `gorm:"column:user_id"`
+		Status      string    `gorm:"column:status"`
+		TotalCents  int64     `gorm:"column:total_cents"`
+		Currency    string    `gorm:"column:currency"`
+		CloseReason *string   `gorm:"column:close_reason"`
+		Version     int64     `gorm:"column:version"`
+		CreatedAt   time.Time `gorm:"column:created_at"`
 	}
 	if err := tx.WithContext(ctx).Raw(query, args...).Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("查询用户订单 user_id=%s: %w", userID, err)
@@ -210,7 +213,7 @@ func (r orderRepo) ListByUser(ctx context.Context, tx db.Tx, userID string, limi
 			closeReason = *row.CloseReason
 		}
 		o, err := domain.RehydrateOrder(row.OrderID, row.UserID, domain.OrderStatus(row.Status),
-			nil, row.TotalCents, row.Currency, closeReason, row.Version)
+			nil, row.TotalCents, row.Currency, closeReason, row.Version, row.CreatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("还原订单 %s: %w", row.OrderID, err)
 		}

@@ -14,14 +14,20 @@ import (
 // 依赖全部是端口（接口），由 main 注入 infra 实现。事务边界在方法内部：
 // 一个写用例就是一次 tx.Do 调用（ADR-0003）。
 type Service struct {
-	tx          db.TransactionManager
-	skus        SKURepository
-	inventories InventoryRepository
+	tx           db.TransactionManager
+	skus         SKURepository
+	inventories  InventoryRepository
+	reservations ReservationRepository
 }
 
 // NewService 构造用例服务。所有参数必须非 nil——缺失依赖应当在装配期暴露，
 // 而不是等到第一个请求进来才 panic。
-func NewService(tx db.TransactionManager, skus SKURepository, inventories InventoryRepository) *Service {
+//
+// reservations 只在"在调用方事务内创建预占"（供下单用例）时使用；SKU 管理
+// 端点不需要它，但它在进程生命周期内是固定依赖，因此放在构造参数里而不是
+// 做成可选。
+func NewService(tx db.TransactionManager, skus SKURepository,
+	inventories InventoryRepository, reservations ReservationRepository) *Service {
 	if tx == nil {
 		panic("inventory/app: TransactionManager 不能为空")
 	}
@@ -31,7 +37,10 @@ func NewService(tx db.TransactionManager, skus SKURepository, inventories Invent
 	if inventories == nil {
 		panic("inventory/app: InventoryRepository 不能为空")
 	}
-	return &Service{tx: tx, skus: skus, inventories: inventories}
+	if reservations == nil {
+		panic("inventory/app: ReservationRepository 不能为空")
+	}
+	return &Service{tx: tx, skus: skus, inventories: inventories, reservations: reservations}
 }
 
 // SKUView 是 SKU 与库存的组合视图，对应 API 的 SKU 响应。

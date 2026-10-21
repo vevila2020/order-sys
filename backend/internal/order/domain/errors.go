@@ -23,4 +23,9 @@ var (
 	ErrDuplicateSKU = errors.New("order: 同一订单内不允许重复 SKU")
 	// ErrInvalidStateTransition 表示状态机不允许该迁移。
 	ErrInvalidStateTransition = errors.New("order: 当前状态不允许该操作")
+	// ErrInvalidCreatedAt 表示下单时间缺失。
+	//
+	// 时间由用例层传入而不是领域层取 now：事务重试会让构造函数执行多次，
+	// 领域层取时间会让每次尝试得到不同的值。缺失说明调用方忘了传。
+	ErrInvalidCreatedAt = errors.New("order: created_at 不能为空")
 )

@@ -47,7 +47,7 @@ func newOrder(t *testing.T, orderID, userID string) *domain.Order {
 	if err != nil {
 		t.Fatalf("构造明细: %v", err)
 	}
-	o, err := domain.NewOrder(orderID, userID, []domain.OrderItem{item1, item2})
+	o, err := domain.NewOrder(orderID, userID, []domain.OrderItem{item1, item2}, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("构造订单: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestCreateRollsBackHeaderWhenItemFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("构造明细: %v", err)
 	}
-	o, err := domain.NewOrder("ord-item-fail", "u1", []domain.OrderItem{okItem, tooLong})
+	o, err := domain.NewOrder("ord-item-fail", "u1", []domain.OrderItem{okItem, tooLong}, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("构造订单: %v", err)
 	}

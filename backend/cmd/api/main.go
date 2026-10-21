@@ -16,14 +16,21 @@ import (
 	inventoryapp "github.com/vevila2020/order-sys/internal/inventory/app"
 	inventoryhttp "github.com/vevila2020/order-sys/internal/inventory/http"
 	inventoryinfra "github.com/vevila2020/order-sys/internal/inventory/infra"
+	orderapp "github.com/vevila2020/order-sys/internal/order/app"
+	orderhttp "github.com/vevila2020/order-sys/internal/order/http"
+	orderinfra "github.com/vevila2020/order-sys/internal/order/infra"
+	paymentapp "github.com/vevila2020/order-sys/internal/payment/app"
+	paymentinfra "github.com/vevila2020/order-sys/internal/payment/infra"
 	"github.com/vevila2020/order-sys/internal/platform/authx"
 	"github.com/vevila2020/order-sys/internal/platform/configx"
 	"github.com/vevila2020/order-sys/internal/platform/db"
 	"github.com/vevila2020/order-sys/internal/platform/healthx"
 	"github.com/vevila2020/order-sys/internal/platform/httpserver"
 	"github.com/vevila2020/order-sys/internal/platform/httpx"
+	"github.com/vevila2020/order-sys/internal/platform/idempotency"
 	"github.com/vevila2020/order-sys/internal/platform/loggerx"
 	"github.com/vevila2020/order-sys/internal/platform/observability"
+	"github.com/vevila2020/order-sys/internal/platform/outbox"
 	"github.com/vevila2020/order-sys/internal/platform/ratelimit"
 	"github.com/vevila2020/order-sys/internal/version"
 )
@@ -108,8 +115,26 @@ func run() int {
 	inventorySvc := inventoryapp.NewService(txManager,
 		inventoryinfra.NewSKURepository(),
 		inventoryinfra.NewInventoryRepository(),
+		inventoryinfra.NewReservationRepository(),
 	)
 	inventoryHandler := inventoryhttp.NewHandler(inventorySvc)
+
+	paymentSvc := paymentapp.NewService(paymentinfra.NewPaymentRepository())
+
+	// 一个适配器同时满足 order 的三个库存相关端口（读价格、扣减、写预占）。
+	// 重复构造三个实例没有收益，反而让人以为它们是三种不同的适配。
+	inventoryAdapter := orderinfra.NewInventoryAdapter(inventorySvc)
+	orderSvc := orderapp.NewService(
+		txManager,
+		orderinfra.NewOrderRepository(),
+		idempotency.NewStore(cfg.Idempotency.TTL),
+		outbox.NewWriter(),
+		inventoryAdapter, // SKUReader
+		inventoryAdapter, // InventoryReserver
+		inventoryAdapter, // ReservationWriter
+		orderinfra.NewPaymentAdapter(paymentSvc),
+	)
+	orderHandler := orderhttp.NewHandler(orderSvc)
 
 	engine := httpserver.NewEngine(httpserver.ServerDeps{
 		Config: httpserver.ServerConfig{
@@ -126,6 +151,7 @@ func run() int {
 		// 业务路由由 main 挂载，platform/httpserver 不认识任何业务模块。
 		RegisterRoutes: func(g httpserver.RouteGroups) {
 			inventoryhttp.Register(g.Operator, inventoryHandler)
+			orderhttp.Register(g.Buyer, orderHandler)
 		},
 	})
 

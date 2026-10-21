@@ -32,7 +32,7 @@ func TestRehydrateOrder(t *testing.T) {
 	t.Run("恢复终态订单", func(t *testing.T) {
 		o, err := domain.RehydrateOrder("order-1", "user-1", domain.StatusCancelled,
 			[]domain.OrderItem{domain.RehydrateOrderItem("sku-1", 1, 100, 100)},
-			100, "CNY", "用户取消", 3)
+			100, "CNY", "用户取消", 3, testCreatedAt)
 		if err != nil {
 			t.Fatalf("恢复失败: %v", err)
 		}
@@ -48,7 +48,7 @@ func TestRehydrateOrder(t *testing.T) {
 	})
 
 	t.Run("未知状态拒绝", func(t *testing.T) {
-		_, err := domain.RehydrateOrder("order-1", "user-1", "PAID", nil, 0, "CNY", "", 0)
+		_, err := domain.RehydrateOrder("order-1", "user-1", "PAID", nil, 0, "CNY", "", 0, testCreatedAt)
 		if !errors.Is(err, domain.ErrInvalidStateTransition) {
 			t.Fatalf("got %v, want ErrInvalidStateTransition", err)
 		}
@@ -56,7 +56,7 @@ func TestRehydrateOrder(t *testing.T) {
 
 	t.Run("明细被复制", func(t *testing.T) {
 		items := []domain.OrderItem{domain.RehydrateOrderItem("sku-1", 1, 100, 100)}
-		o, err := domain.RehydrateOrder("order-1", "user-1", domain.StatusPendingPayment, items, 100, "CNY", "", 0)
+		o, err := domain.RehydrateOrder("order-1", "user-1", domain.StatusPendingPayment, items, 100, "CNY", "", 0, testCreatedAt)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -68,7 +68,7 @@ func TestRehydrateOrder(t *testing.T) {
 
 	t.Run("恢复后仍可迁移", func(t *testing.T) {
 		// 从库中读出的 PENDING_PAYMENT 订单必须能继续走支付流程。
-		o, err := domain.RehydrateOrder("order-1", "user-1", domain.StatusPendingPayment, nil, 100, "CNY", "", 0)
+		o, err := domain.RehydrateOrder("order-1", "user-1", domain.StatusPendingPayment, nil, 100, "CNY", "", 0, testCreatedAt)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -83,7 +83,7 @@ func TestNewOrderRejectsDuplicateSKU(t *testing.T) {
 	_, err := domain.NewOrder("order-1", "user-1", []domain.OrderItem{
 		mustItem(t, "sku-1", 1, 100),
 		mustItem(t, "sku-1", 2, 100),
-	})
+	}, testCreatedAt)
 	if !errors.Is(err, domain.ErrDuplicateSKU) {
 		t.Fatalf("got %v, want ErrDuplicateSKU", err)
 	}
@@ -93,7 +93,7 @@ func TestNewOrderRejectsDuplicateSKU(t *testing.T) {
 func TestNewOrderPropagatesAmountOverflow(t *testing.T) {
 	// 单行金额已经溢出，构造订单应把错误透传而不是存一个回绕后的总额。
 	item := domain.RehydrateOrderItem("sku-1", 1<<62, 4, -1)
-	_, err := domain.NewOrder("order-1", "user-1", []domain.OrderItem{item})
+	_, err := domain.NewOrder("order-1", "user-1", []domain.OrderItem{item}, testCreatedAt)
 	if !errors.Is(err, domain.ErrAmountOverflow) {
 		t.Fatalf("got %v, want ErrAmountOverflow", err)
 	}
