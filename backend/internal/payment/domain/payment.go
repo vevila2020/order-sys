@@ -81,9 +81,10 @@ func NewPayment(paymentID, orderID string, amountCents int64) (*Payment, error) 
 // RehydratePayment 从持久化状态重建支付单。
 //
 // finishedAt 由调用方从库中读出后传入（用 time.Time 零值表示 NULL），
-// 这里不再自己取 now：还原的对象不应凭空产生当前时间。
+// 这里不再自己取 now：还原的对象不应凭空产生当前时间。终态单必须带上
+// finished_at，否则查询接口会显示"已完成但完成时间为空"。
 func RehydratePayment(paymentID, orderID string, amountCents int64, status PaymentStatus,
-	providerRef, failureReason string, version int64) (*Payment, error) {
+	providerRef, failureReason string, finishedAt time.Time, version int64) (*Payment, error) {
 	if !status.Valid() {
 		return nil, ErrInvalidStateTransition
 	}
@@ -94,7 +95,9 @@ func RehydratePayment(paymentID, orderID string, amountCents int64, status Payme
 		status:        status,
 		providerRef:   providerRef,
 		failureReason: failureReason,
-		version:       version,
+		// 统一为 UTC：DATETIME(6) 不保存时区，从驱动读回的时间可能带本地时区。
+		finishedAt: finishedAt.UTC(),
+		version:    version,
 	}, nil
 }
 

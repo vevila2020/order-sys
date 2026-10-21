@@ -34,6 +34,15 @@
 
 ### Added
 
+- M1-T11 payment 仓储（`internal/payment/{app,infra}`）：`uk_payments_order_id`
+  保证每单一个支付单；`Transition` 以 `WHERE status = ?` 条件迁移，0 行返回
+  `ErrPaymentStateConflict` 交由 app 层判定"重放"还是"相反结果"，而不是在仓储层
+  把 0 行一律当成功（那样会静默丢掉迟到回调的竞态结论）。
+- 迁移 `000002_payments_audit_columns`：补齐 `payments.failure_reason` 与
+  `payments.version`。领域模型与单元测试早已依赖这两列（失败原因落库、版本语义），
+  但 000001 未声明，属于 schema 与模型不一致；两列均可空/带默认值，是安全的前向扩展。
+- `payment.domain.RehydratePayment` 增加 `finishedAt` 参数并统一转 UTC：原注释
+  声称由调用方传入完成时间，但签名里没有该参数，还原的终态单会丢失 `finished_at`。
 - M1-T10 order 仓储与 Outbox 写入（`internal/order/infra/repository.go`、
   `internal/platform/outbox/`）：订单与明细同事务写入；状态迁移用
   `WHERE status = ?` 条件更新，0 行返回 `ErrOrderStateConflict`；提供

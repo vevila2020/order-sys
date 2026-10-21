@@ -3,6 +3,7 @@ package domain_test
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/vevila2020/order-sys/internal/payment/domain"
 )
@@ -255,7 +256,8 @@ func TestFailureReasonRecorded(t *testing.T) {
 // TestRehydratePayment 覆盖 infra 层还原路径。
 func TestRehydratePayment(t *testing.T) {
 	t.Run("恢复终态", func(t *testing.T) {
-		p, err := domain.RehydratePayment("pay-1", "order-1", 100, domain.StatusSucceeded, "ref-1", "", 2)
+		finished := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+		p, err := domain.RehydratePayment("pay-1", "order-1", 100, domain.StatusSucceeded, "ref-1", "", finished, 2)
 		if err != nil {
 			t.Fatalf("恢复失败: %v", err)
 		}
@@ -265,10 +267,30 @@ func TestRehydratePayment(t *testing.T) {
 		if p.ProviderRef() != "ref-1" {
 			t.Fatalf("provider_ref = %q", p.ProviderRef())
 		}
+		if !p.FinishedAt().Equal(finished) {
+			t.Fatalf("finished_at = %v, want %v", p.FinishedAt(), finished)
+		}
+	})
+
+	t.Run("非 UTC 输入被转换", func(t *testing.T) {
+		// DATETIME(6) 不保存时区，驱动读回的时间可能带本地时区；
+		// 还原时统一转 UTC，避免同一时刻在 API 上显示成不同字符串。
+		loc := time.FixedZone("CST", 8*3600)
+		local := time.Date(2026, 10, 21, 20, 0, 0, 0, loc)
+		p, err := domain.RehydratePayment("pay-1", "order-1", 100, domain.StatusSucceeded, "", "", local, 1)
+		if err != nil {
+			t.Fatalf("恢复失败: %v", err)
+		}
+		if p.FinishedAt().Location() != time.UTC {
+			t.Fatalf("location = %v, want UTC", p.FinishedAt().Location())
+		}
+		if !p.FinishedAt().Equal(local) {
+			t.Fatalf("转换改变了时刻: %v vs %v", p.FinishedAt(), local)
+		}
 	})
 
 	t.Run("未知状态拒绝", func(t *testing.T) {
-		_, err := domain.RehydratePayment("pay-1", "order-1", 100, "REFUNDED", "", "", 0)
+		_, err := domain.RehydratePayment("pay-1", "order-1", 100, "REFUNDED", "", "", time.Time{}, 0)
 		if !errors.Is(err, domain.ErrInvalidStateTransition) {
 			t.Fatalf("got %v, want ErrInvalidStateTransition", err)
 		}

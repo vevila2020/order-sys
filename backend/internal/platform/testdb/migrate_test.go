@@ -58,16 +58,19 @@ func TestMigrationsUpDownUp(t *testing.T) {
 	if dirty {
 		t.Fatalf("up 后版本为 dirty，说明迁移中途失败")
 	}
-	if version != 1 {
-		t.Fatalf("版本 = %d, want 1", version)
+	// latestVersion 必须与 migrations/ 下最大的文件编号一致。新增迁移时同步修改，
+	// 否则本用例会在"版本号对不上"与"迁移没被应用"之间给出误导性的失败信息。
+	const latestVersion = 2
+	if version != latestVersion {
+		t.Fatalf("版本 = %d, want %d", version, latestVersion)
 	}
 
 	// --- up 幂等：重复执行不应报错，也不应改变版本 ---
 	if err := db.MigrateUp(); err != nil {
 		t.Fatalf("重复 up 失败（应返回 ErrNoChange 并被忽略）: %v", err)
 	}
-	if v, _, err := db.Version(); err != nil || v != 1 {
-		t.Fatalf("重复 up 后版本 = %d (err=%v), want 1", v, err)
+	if v, _, err := db.Version(); err != nil || v != latestVersion {
+		t.Fatalf("重复 up 后版本 = %d (err=%v), want %d", v, err, latestVersion)
 	}
 
 	// --- down ---
@@ -280,6 +283,8 @@ func TestColumnTypes(t *testing.T) {
 		{"orders", "total_cents", "bigint unsigned"},
 		{"order_items", "unit_price_cents", "bigint unsigned"},
 		{"payments", "amount_cents", "bigint unsigned"},
+		{"payments", "version", "bigint unsigned"},
+		{"payments", "failure_reason", "varchar(255)"},
 		{"orders", "created_at", "datetime(6)"},
 		{"orders", "updated_at", "datetime(6)"},
 		{"payments", "finished_at", "datetime(6)"},
