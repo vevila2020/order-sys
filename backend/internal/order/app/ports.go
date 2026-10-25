@@ -116,3 +116,34 @@ type PaymentCreator interface {
 	// 最终落库的那一行不一致。ID 在事务外生成一次，重试复用同一个值。
 	CreatePayment(ctx context.Context, tx db.Tx, paymentID, orderID string, amountCents int64) error
 }
+
+// PaymentInfo 是订单详情展示所需的支付信息。
+//
+// 用独立的小结构而不是把 payment 的领域对象带进 order：order 不 import 其他
+// 模块的 domain（ADR-0002），而且详情页只需要这三个字段。
+type PaymentInfo struct {
+	PaymentID string
+	Status    string
+}
+
+// PaymentReader 读取与取消支付单（由 payment 模块的 app 提供）。
+type PaymentReader interface {
+	// GetByOrderID 读取订单对应的支付单；不存在返回错误。
+	GetByOrderID(ctx context.Context, tx db.Tx, orderID string) (PaymentInfo, error)
+	// CancelByOrderID 在调用方事务内把支付单从 PENDING 迁移到 CANCELLED。
+	//
+	// 已是终态时返回 nil（幂等）：取消订单可能被重复触发，或与支付回调并发，
+	// 此时支付单已经不由我们决定，重放取消不应报错。真正的冲突（支付已成功）
+	// 由订单状态的条件更新先一步拦下。
+	CancelByOrderID(ctx context.Context, tx db.Tx, orderID string) error
+}
+
+// ReservationReleaser 在取消订单时释放预占（由 inventory 模块的 app 提供）。
+type ReservationReleaser interface {
+	// ReleaseByOrderID 在调用方事务内把该订单的预占标记为 RELEASED，
+	// 并把每个 SKU 的预占量归还到对应桶。
+	//
+	// 返回 released=false 表示预占已是终态（重复取消或并发确认），调用方应按
+	// 稳定结果处理。它不返回错误，因为"已经释放过"不是故障。
+	ReleaseByOrderID(ctx context.Context, tx db.Tx, orderID string) (released bool, err error)
+}

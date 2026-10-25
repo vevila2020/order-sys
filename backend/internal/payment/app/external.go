@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 
 	"github.com/vevila2020/order-sys/internal/payment/domain"
 	"github.com/vevila2020/order-sys/internal/platform/db"
@@ -47,4 +48,32 @@ func (s *Service) GetPayment(ctx context.Context, tx db.Tx, paymentID string) (*
 // GetByOrderID 读取订单对应的支付单。
 func (s *Service) GetByOrderID(ctx context.Context, tx db.Tx, orderID string) (*domain.Payment, error) {
 	return s.payments.GetByOrderID(ctx, tx, orderID)
+}
+
+// CancelByOrderID 在调用方事务内取消订单的支付单。
+//
+// 已是终态时返回 nil 而不是错误：取消订单可能被重复触发，也可能与支付回调
+// 并发。此时"支付单已经不是 PENDING"是预期结果，真正的冲突（支付已成功、
+// 订单已 COMPLETED）由订单状态的条件更新先一步拦下——那条更新成功，说明
+// 订单当时确实还是 PENDING_PAYMENT，支付单理论上也应当是 PENDING。
+func (s *Service) CancelByOrderID(ctx context.Context, tx db.Tx, orderID string) error {
+	p, err := s.payments.GetByOrderID(ctx, tx, orderID)
+	if err != nil {
+		if errors.Is(err, ErrPaymentNotFound) {
+			// 订单没有支付单（历史数据或下单中途的旧版本）：取消订单不需要
+			// 支付单配合，直接放行。
+			return nil
+		}
+		return err
+	}
+	if p.IsTerminal() {
+		return nil
+	}
+	// 条件更新要求 from=PENDING：并发回调若已把状态推进到终态，这里得到
+	// ErrPaymentStateConflict，同样说明"已经处理过"，按幂等处理。
+	err = s.payments.Transition(ctx, tx, p.ID(), domain.StatusPending, domain.StatusCancelled, "", "")
+	if err != nil && errors.Is(err, ErrPaymentStateConflict) {
+		return nil
+	}
+	return err
 }

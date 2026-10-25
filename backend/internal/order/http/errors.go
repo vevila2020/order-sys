@@ -38,6 +38,9 @@ func toAppError(err error) *httpx.AppError {
 		return httpx.NewError(httpx.CodeNotFound, err)
 	case errors.Is(err, app.ErrOrderStateConflict):
 		return httpx.NewError(httpx.CodeInvalidStateTransition, err)
+	case errors.Is(err, domain.ErrInvalidStateTransition):
+		// 终态订单再次取消：状态机不允许，而不是并发冲突。
+		return httpx.NewError(httpx.CodeInvalidStateTransition, err)
 
 	case errors.Is(err, domain.ErrInvalidUserID),
 		errors.Is(err, domain.ErrInvalidOrderID),

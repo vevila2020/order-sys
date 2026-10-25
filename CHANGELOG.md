@@ -34,6 +34,14 @@
 
 ### Added
 
+- M1-T14 订单查询与取消（`internal/order/{app,http}`）：查询返回状态、金额快照、
+  明细、支付信息与关闭原因，他人订单按 404 处理（不泄露存在性）；取消在同一事务内
+  依次条件更新订单状态、释放预占、取消支付单、写 `order.cancelled` 事件，
+  重复取消返回 200，终态冲突返回 409。
+- 新增端口 `PaymentReader`（按订单读/取消支付单）与 `ReservationReleaser`
+  （按订单释放预占），由 `order/infra` 的适配器实现并翻译错误。
+- 集成测试覆盖：归属校验、取消的资源释放与幂等、已完成订单冲突、
+  取消与支付成功的并发终态唯一（库存最多归还一次）。
 - M1-T13 下单用例（`internal/order/app/place_order.go`）：一次事务内完成
   幂等占位 → 按 `sku_id` 排序读价格 → 预占 → 写预占/订单/支付单 →
   写 `order.created` 与 `inventory.reserved` → 完成幂等快照。订单号、预占号、

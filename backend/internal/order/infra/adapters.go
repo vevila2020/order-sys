@@ -108,10 +108,35 @@ func (a *PaymentAdapter) CreatePayment(ctx context.Context, tx db.Tx, paymentID,
 	return a.svc.CreatePayment(ctx, tx, paymentID, orderID, amountCents)
 }
 
+// GetByOrderID 实现 orderapp.PaymentReader。
+func (a *PaymentAdapter) GetByOrderID(ctx context.Context, tx db.Tx, orderID string) (orderapp.PaymentInfo, error) {
+	p, err := a.svc.GetByOrderID(ctx, tx, orderID)
+	if err != nil {
+		if errors.Is(err, paymentapp.ErrPaymentNotFound) {
+			// 转成本模块的哨兵：order 的 HTTP 层不认识 payment 的错误集。
+			return orderapp.PaymentInfo{}, orderapp.ErrPaymentNotFound
+		}
+		return orderapp.PaymentInfo{}, err
+	}
+	return orderapp.PaymentInfo{PaymentID: p.ID(), Status: string(p.Status())}, nil
+}
+
+// CancelByOrderID 实现 orderapp.PaymentReader。
+func (a *PaymentAdapter) CancelByOrderID(ctx context.Context, tx db.Tx, orderID string) error {
+	return a.svc.CancelByOrderID(ctx, tx, orderID)
+}
+
+// ReleaseByOrderID 实现 orderapp.ReservationReleaser。
+func (a *InventoryAdapter) ReleaseByOrderID(ctx context.Context, tx db.Tx, orderID string) (bool, error) {
+	return a.svc.ReleaseByOrderID(ctx, tx, orderID)
+}
+
 // 编译期断言：适配器必须满足端口。
 var (
-	_ orderapp.SKUReader         = (*InventoryAdapter)(nil)
-	_ orderapp.InventoryReserver = (*InventoryAdapter)(nil)
-	_ orderapp.ReservationWriter = (*InventoryAdapter)(nil)
-	_ orderapp.PaymentCreator    = (*PaymentAdapter)(nil)
+	_ orderapp.SKUReader           = (*InventoryAdapter)(nil)
+	_ orderapp.InventoryReserver   = (*InventoryAdapter)(nil)
+	_ orderapp.ReservationWriter   = (*InventoryAdapter)(nil)
+	_ orderapp.ReservationReleaser = (*InventoryAdapter)(nil)
+	_ orderapp.PaymentCreator      = (*PaymentAdapter)(nil)
+	_ orderapp.PaymentReader       = (*PaymentAdapter)(nil)
 )

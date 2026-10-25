@@ -129,10 +129,12 @@ func run() int {
 		orderinfra.NewOrderRepository(),
 		idempotency.NewStore(cfg.Idempotency.TTL),
 		outbox.NewWriter(),
-		inventoryAdapter, // SKUReader
-		inventoryAdapter, // InventoryReserver
-		inventoryAdapter, // ReservationWriter
-		orderinfra.NewPaymentAdapter(paymentSvc),
+		inventoryAdapter,                         // SKUReader
+		inventoryAdapter,                         // InventoryReserver
+		inventoryAdapter,                         // ReservationWriter
+		orderinfra.NewPaymentAdapter(paymentSvc), // PaymentCreator
+		orderinfra.NewPaymentAdapter(paymentSvc), // PaymentReader
+		inventoryAdapter,                         // ReservationReleaser
 	)
 	orderHandler := orderhttp.NewHandler(orderSvc)
 

@@ -9,4 +9,6 @@ import "github.com/gin-gonic/gin"
 // 不在路由层表达——路由层拿不到订单归属。
 func Register(group *gin.RouterGroup, h *Handler) {
 	group.POST("/orders", h.Place)
+	group.GET("/orders/:order_id", h.Get)
+	group.POST("/orders/:order_id/cancel", h.Cancel)
 }

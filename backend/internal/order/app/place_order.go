@@ -65,6 +65,10 @@ type OrderItemView struct {
 }
 
 // Service 编排订单用例。
+//
+// 依赖按用途分组：下单用 skus/inventory/reservations/payments 的写端口；
+// 查询与取消额外用 paymentRead 与 releaser。不拆成两个构造函数——它们都是
+// 进程级固定依赖，拆开只会让 main 的装配变复杂。
 type Service struct {
 	tx           db.TransactionManager
 	orders       OrderRepository
@@ -74,6 +78,8 @@ type Service struct {
 	inventory    InventoryReserver
 	reservations ReservationWriter
 	payments     PaymentCreator
+	paymentRead  PaymentReader
+	releaser     ReservationReleaser
 	now          func() time.Time
 }
 
@@ -90,9 +96,12 @@ func NewService(
 	inventory InventoryReserver,
 	reservations ReservationWriter,
 	payments PaymentCreator,
+	paymentReader PaymentReader,
+	releaser ReservationReleaser,
 ) *Service {
 	if tx == nil || orders == nil || idempotencyStore == nil || outboxWriter == nil ||
-		skus == nil || inventory == nil || reservations == nil || payments == nil {
+		skus == nil || inventory == nil || reservations == nil || payments == nil ||
+		paymentReader == nil || releaser == nil {
 		// 装配期失败优于运行期 nil 解引用：后者会在第一个请求进来时才暴露，
 		// 且错误信息指向用例内部而不是装配代码。
 		panic("order/app: 依赖不能为空")
@@ -106,6 +115,8 @@ func NewService(
 		inventory:    inventory,
 		reservations: reservations,
 		payments:     payments,
+		paymentRead:  paymentReader,
+		releaser:     releaser,
 		now:          time.Now,
 	}
 }

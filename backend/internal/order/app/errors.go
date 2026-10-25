@@ -18,4 +18,9 @@ var (
 	// 与 ErrOrderNotFound 分开放在 app 层，但对外必须映射成同一个 404：
 	// 区分二者等于告诉调用方"这个订单存在，只是不是你的"。
 	ErrOrderForbidden = errors.New("order: 无权访问该订单")
+	// ErrPaymentNotFound 表示订单没有对应的支付单。
+	//
+	// 不映射成 500：历史数据或下单中途失败的订单可能确实没有支付单，
+	// 详情接口应当如实返回 payment 字段为空，而不是让整条查询失败。
+	ErrPaymentNotFound = errors.New("order: 支付单不存在")
 )

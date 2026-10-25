@@ -86,5 +86,51 @@ type ReservationLine struct {
 	Quantity int64
 }
 
+// ReleaseByOrderID 在调用方事务内释放订单的预占。
+//
+// 顺序固定：先条件迁移预占状态，再逐 SKU 归还库存。反过来（先还库存再改状态）
+// 会在状态迁移失败时留下"库存已还但预占仍是 RESERVED"的不一致数据。
+//
+// 返回 released=false 有两种来源，结论相同：
+//   - 预占不存在：订单从未成功预占（例如下单在写预占前失败），无需归还；
+//   - 预占已是终态：重复取消或已被支付回调确认，归还已经发生过。
+//
+// 后者不当作错误，因为取消与支付回调的并发放到最后只有一个能成功（订单状态的
+// 条件更新），另一个必然是"已经处理过"。
+func (s *Service) ReleaseByOrderID(ctx context.Context, tx db.Tx, orderID string) (bool, error) {
+	resv, err := s.reservations.GetByOrderID(ctx, tx, orderID)
+	if err != nil {
+		if errors.Is(err, ErrReservationNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	if resv.IsTerminal() {
+		return false, nil
+	}
+
+	// 先迁移状态：影响行数为 0 说明被并发方先一步推进，此时不能再动库存。
+	if err := s.reservations.Transition(ctx, tx, resv.ID(), domain.ReservationReleased); err != nil {
+		if errors.Is(err, ErrReservationStateConflict) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	// 预占记录的 source 字段没有落库（M1 只有普通订单），因此归还目标固定为
+	// available。M3 引入活动订单时，这里要按预占来源选择桶。
+	for _, item := range resv.Items() {
+		if err := s.inventories.Release(ctx, tx, item.SKUID, item.Quantity, domain.OrderSourceNormal); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+// GetReservation 读取订单的预占（供订单详情展示状态）。
+func (s *Service) GetReservation(ctx context.Context, tx db.Tx, orderID string) (*domain.Reservation, error) {
+	return s.reservations.GetByOrderID(ctx, tx, orderID)
+}
+
 // ErrSKUUnavailable 表示 SKU 已停用，不允许下单。
 var ErrSKUUnavailable = fmt.Errorf("%w: SKU 已停用", domain.ErrInvalidSKUID)

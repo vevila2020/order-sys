@@ -57,6 +57,7 @@ func newHarness(t *testing.T, tdb *testdb.DB) *harness {
 	)
 	paymentSvc := paymentapp.NewService(paymentinfra.NewPaymentRepository())
 	adapter := orderinfra.NewInventoryAdapter(inventorySvc)
+	paymentAdapter := orderinfra.NewPaymentAdapter(paymentSvc)
 
 	svc := orderapp.NewService(
 		tm,
@@ -64,7 +65,9 @@ func newHarness(t *testing.T, tdb *testdb.DB) *harness {
 		idempotency.NewStore(time.Hour),
 		outbox.NewWriter(),
 		adapter, adapter, adapter,
-		orderinfra.NewPaymentAdapter(paymentSvc),
+		paymentAdapter,
+		paymentAdapter,
+		adapter,
 	)
 	return &harness{gdb: gdb, svc: svc}
 }

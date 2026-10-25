@@ -45,6 +45,48 @@ type OrderResponse struct {
 	CreatedAt     string              `json:"created_at"`
 }
 
+// OrderDetailResponse 是查询订单详情的响应体。
+//
+// close_reason 用 omitempty：非终态订单没有关闭原因，返回空串会让客户端
+// 误以为"因为空原因而关闭"。字段缺失与"无原因"是同一件事，省略更清楚。
+type OrderDetailResponse struct {
+	OrderID       string              `json:"order_id"`
+	UserID        string              `json:"user_id"`
+	Status        string              `json:"status"`
+	TotalCents    int64               `json:"total_cents"`
+	Currency      string              `json:"currency"`
+	CloseReason   string              `json:"close_reason,omitempty"`
+	Items         []OrderItemResponse `json:"items"`
+	PaymentID     string              `json:"payment_id,omitempty"`
+	PaymentStatus string              `json:"payment_status,omitempty"`
+	CreatedAt     string              `json:"created_at"`
+}
+
+// toOrderDetailResponse 把详情视图映射为响应体。
+func toOrderDetailResponse(d *app.OrderDetail) OrderDetailResponse {
+	items := make([]OrderItemResponse, 0, len(d.Items))
+	for _, it := range d.Items {
+		items = append(items, OrderItemResponse{
+			SKUID:          it.SKUID,
+			Quantity:       it.Quantity,
+			UnitPriceCents: it.UnitPriceCents,
+			AmountCents:    it.AmountCents,
+		})
+	}
+	return OrderDetailResponse{
+		OrderID:       d.OrderID,
+		UserID:        d.UserID,
+		Status:        string(d.Status),
+		TotalCents:    d.TotalCents,
+		Currency:      d.Currency,
+		CloseReason:   d.CloseReason,
+		Items:         items,
+		PaymentID:     d.PaymentID,
+		PaymentStatus: d.PaymentStatus,
+		CreatedAt:     d.CreatedAt,
+	}
+}
+
 // toOrderResponse 把用例视图映射为响应体。
 //
 // created_at 用 RFC 3339 UTC（需求 §8.1）：数据库存的是不带时区的 DATETIME，
